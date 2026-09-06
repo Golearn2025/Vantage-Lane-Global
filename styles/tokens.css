@@ -1,0 +1,54 @@
+:root {
+  --background: 40 20% 98%;
+  --foreground: 220 18% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 18% 12%;
+  --muted: 40 12% 94%;
+  --muted-foreground: 220 8% 42%;
+  --border: 40 10% 88%;
+  --primary: 36 42% 58%;
+  --primary-foreground: 40 30% 10%;
+  --secondary: 220 10% 94%;
+  --secondary-foreground: 220 14% 18%;
+  --success: 152 45% 36%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 48%;
+  --warning-foreground: 30 20% 10%;
+  --danger: 0 72% 48%;
+  --danger-foreground: 0 0% 100%;
+  --info: 210 70% 45%;
+  --info-foreground: 0 0% 100%;
+  --ring: 36 42% 58%;
+  --radius: 0.5rem;
+  --sidebar: 40 18% 96%;
+  --sidebar-foreground: 220 14% 20%;
+  --sidebar-border: 40 10% 88%;
+  --sidebar-accent: 36 30% 92%;
+}
+
+.dark {
+  --background: 220 16% 8%;
+  --foreground: 40 12% 94%;
+  --card: 220 14% 11%;
+  --card-foreground: 40 12% 94%;
+  --muted: 220 12% 16%;
+  --muted-foreground: 40 8% 64%;
+  --border: 220 10% 20%;
+  --primary: 36 38% 62%;
+  --primary-foreground: 220 16% 8%;
+  --secondary: 220 12% 18%;
+  --secondary-foreground: 40 12% 92%;
+  --success: 152 40% 42%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 85% 52%;
+  --warning-foreground: 30 20% 10%;
+  --danger: 0 65% 52%;
+  --danger-foreground: 0 0% 100%;
+  --info: 210 65% 55%;
+  --info-foreground: 0 0% 100%;
+  --ring: 36 38% 62%;
+  --sidebar: 220 16% 7%;
+  --sidebar-foreground: 40 10% 90%;
+  --sidebar-border: 220 10% 18%;
+  --sidebar-accent: 220 12% 14%;
+}
