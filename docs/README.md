@@ -1,24 +1,22 @@
 # Vantage Lane Global — Architecture Documentation
 
-**No application code, no Supabase tables, no UI yet.**
+Database baseline **V1** (`db-foundation-v1`). Application architecture **approved**.
 
 ## Current phase
 
-**Column-level schema review** — [`03-database/schema-columns.md`](03-database/schema-columns.md).
+On branch `feature/network-crm-foundation`: prepare data-access for Network CRM UI.  
+**No frontend code / no Supabase changes until the Milestone 1 data-access plan is executed.**
 
-Do not create SQL, migrations, auth, or UI until this is approved.
+## Application architecture (approved)
 
-## Start here
+1. [frontend-architecture.md](02-architecture/frontend-architecture.md)
+2. [data-access-realtime-architecture.md](02-architecture/data-access-realtime-architecture.md)
+3. [application-module-boundaries.md](02-architecture/application-module-boundaries.md)
+4. [ui-design-system.md](02-architecture/ui-design-system.md)
+5. **[milestone1-data-access-plan.md](03-database/milestone1-data-access-plan.md)** ← next DB work when authorized
 
-1. [schema-columns.md](03-database/schema-columns.md) ← **review now**
-2. [ADR-016](07-decisions/adr-016-final-pre-column-clarifications.md)
-3. [database-design.md](03-database/database-design.md)
+## Database baseline (immutable)
 
-## Locked highlights
-
-- UNKNOWN: no auto-match; manual search with warning
-- Partnership lifecycle ≠ supplier/buyer (capabilities both)
-- Compliance: org / offering / vehicle (no polymorphic domain FK)
-- Bases ≠ coverage
-- Fleet: `gt_fleet_declarations` (qty aggregates) → `gt_fleet_units` (verified individuals)
-- VehicleCategory (global) ≠ concrete models
+- [phase1-implementation-report.md](03-database/phase1-implementation-report.md)
+- [bootstrap-rls-report.md](03-database/bootstrap-rls-report.md)
+- `supabase/migrations/` — **do not edit applied migrations**
