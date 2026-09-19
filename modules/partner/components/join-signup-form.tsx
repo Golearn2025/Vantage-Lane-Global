@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createClient } from "@/shared/lib/supabase/client";
+import { persistInviteToken } from "@/modules/invites/invite-token";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
@@ -43,6 +44,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default function JoinSignupClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -56,6 +58,10 @@ export default function JoinSignupClient() {
     },
   });
 
+  useEffect(() => {
+    persistInviteToken(searchParams.get("invite"));
+  }, [searchParams]);
+
   async function onSubmit(values: FormValues) {
     setError(null);
     const supabase = createClient();
@@ -64,17 +70,23 @@ export default function JoinSignupClient() {
       /\s+/g,
       " ",
     );
+    const invite = searchParams.get("invite");
+    persistInviteToken(invite);
+    const nextSetup = invite
+      ? `/join/setup?invite=${encodeURIComponent(invite)}`
+      : "/join/setup";
 
     const { data, error: signErr } = await supabase.auth.signUp({
       email: values.email.trim().toLowerCase(),
       password: values.password,
       options: {
-        emailRedirectTo: `${origin}/auth/callback?next=/join/setup`,
+        emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(nextSetup)}`,
         data: {
           display_name: displayName,
           first_name: values.firstName.trim(),
           surname: values.surname.trim(),
           phone: values.phoneE164,
+          invite_token: invite || undefined,
         },
       },
     });
@@ -91,7 +103,7 @@ export default function JoinSignupClient() {
           phone: values.phoneE164,
         })
         .eq("id", data.session.user.id);
-      router.replace("/join/setup");
+      router.replace(nextSetup);
       return;
     }
 

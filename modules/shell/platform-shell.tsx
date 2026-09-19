@@ -12,6 +12,7 @@ import {
   Moon,
   Sun,
   Monitor,
+  Send,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState } from "react";
@@ -33,6 +34,7 @@ const navItems = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/network", label: "Network", icon: MapPinned },
   { href: "/contacts", label: "Contacts", icon: ContactRound },
+  { href: "/invites", label: "Invites", icon: Send },
   { href: "/organizations", label: "Organizations", icon: Building2 },
 ];
 

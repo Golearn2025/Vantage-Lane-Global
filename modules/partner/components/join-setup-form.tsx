@@ -17,6 +17,11 @@ import {
   Sparkles,
 } from "lucide-react";
 import { createClient } from "@/shared/lib/supabase/client";
+import {
+  clearInviteToken,
+  persistInviteToken,
+  readInviteToken,
+} from "@/modules/invites/invite-token";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
@@ -37,6 +42,7 @@ import {
 import { PhoneInput } from "@/shared/components/phone-input";
 import { PlacesInputWithCoords } from "@/shared/components/places-input";
 import { findDialCountry, toE164 } from "@/shared/lib/phone/dial-countries";
+import { useSearchParams } from "next/navigation";
 
 const COUNTRIES = [
   { code: "GB", name: "United Kingdom" },
@@ -134,6 +140,7 @@ type FormValues = z.infer<typeof schema>;
 
 export function JoinSetupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [needsConfirm, setNeedsConfirm] = useState(false);
@@ -152,6 +159,11 @@ export function JoinSetupForm() {
       serviceCode: "GROUND_TRANSPORTATION",
     },
   });
+
+  useEffect(() => {
+    const fromUrl = searchParams.get("invite");
+    if (fromUrl) persistInviteToken(fromUrl);
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -241,7 +253,25 @@ export function JoinSetupForm() {
     return;
   }
 
-  void data;
+  const bootstrap = data as { organization_id?: string } | null;
+  const inviteToken = searchParams.get("invite") || readInviteToken();
+  if (inviteToken && bootstrap?.organization_id) {
+    try {
+      await (supabase as unknown as {
+        rpc: (
+          fn: string,
+          args: { p_token: string; p_converted_organization_id: string },
+        ) => Promise<{ data: unknown; error: Error | null }>;
+      }).rpc("rpc_mark_invite_converted", {
+        p_token: inviteToken,
+        p_converted_organization_id: bootstrap.organization_id,
+      });
+    } catch {
+      // Soft attribution — don't block partner entry
+    }
+    clearInviteToken();
+  }
+
   router.replace("/partner");
   router.refresh();
 }

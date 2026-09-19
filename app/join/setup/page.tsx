@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import { JoinSetupForm } from "@/modules/partner/components/join-setup-form";
 
 export default function JoinSetupPage() {
-  return <JoinSetupForm />;
+  return (
+    <Suspense fallback={null}>
+      <JoinSetupForm />
+    </Suspense>
+  );
 }

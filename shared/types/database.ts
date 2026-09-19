@@ -2503,6 +2503,7 @@ export type Database = {
         | "OPEN_EMAIL"
         | "COPY_EMAIL"
         | "LOGGED_MANUAL"
+        | "SENT_EMAIL"
       communication_channel: "EMAIL" | "WHATSAPP"
       compliance_status:
         | "COMPLIANT"
@@ -2685,7 +2686,8 @@ export const Constants = {
         "COPY_WHATSAPP",
         "OPEN_EMAIL",
         "COPY_EMAIL",
-        "LOGGED_MANUAL"],
+        "LOGGED_MANUAL",
+        "SENT_EMAIL"],
       communication_channel: ["EMAIL", "WHATSAPP"],
       compliance_status: [
         "COMPLIANT",
