@@ -98,7 +98,7 @@ export function buildNetworkInviteEmail(opts: {
       preheader: `${opts.organizationName}: join our premium ${service} partner network`,
       bodyHtml,
       footerNote:
-        "Questions? Reply to this email · network@vantage-lane.com · vantage-lane.com",
+        "Questions? Reply to this email · partnerships@vantage-lane.com · vantage-lane.com",
     }),
   };
 }

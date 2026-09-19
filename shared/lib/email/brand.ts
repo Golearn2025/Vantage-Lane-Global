@@ -1,8 +1,8 @@
 export const EMAIL_LOGO_URL =
   "https://zbzfbloiodcfjxbrdynl.supabase.co/storage/v1/object/public/assets/logo.png";
 
-export const EMAIL_FROM_DEFAULT = "Vantage Lane Network <no-reply@vantage-lane.com>";
-export const EMAIL_REPLY_TO_DEFAULT = "network@vantage-lane.com";
+export const EMAIL_FROM_DEFAULT = "Vantage Lane Network <partnerships@vantage-lane.com>";
+export const EMAIL_REPLY_TO_DEFAULT = "partnerships@vantage-lane.com";
 
 const SERVICE_LABELS: Record<string, string> = {
   GROUND_TRANSPORTATION: "Ground Transportation",
