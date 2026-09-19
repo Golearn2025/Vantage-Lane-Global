@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/shared/lib/supabase/admin";
+import { looseDb } from "@/shared/lib/supabase/loose";
 
 type ResendWebhookEvent = {
   type?: string;
@@ -9,10 +10,14 @@ type ResendWebhookEvent = {
   };
 };
 
+type InvitationTrackRow = {
+  id: string;
+  organization_id: string;
+};
+
 /**
  * Resend webhook: email.delivered | email.opened | email.clicked | email.bounced
  * Configure endpoint in Resend dashboard → Webhooks.
- * Optional: RESEND_WEBHOOK_SECRET for signature verification (svix) later.
  */
 export async function POST(request: Request) {
   let event: ResendWebhookEvent;
@@ -55,8 +60,9 @@ export async function POST(request: Request) {
   if (status === "opened") patch.opened_at = new Date().toISOString();
   if (status === "clicked") patch.clicked_at = new Date().toISOString();
 
-  const { data: inv, error } = await (admin as any)
-    .from("organization_invitations")
+  const db = looseDb(admin);
+  const { data: inv, error } = await db
+    .from<InvitationTrackRow>("organization_invitations")
     .update(patch)
     .eq("resend_message_id", emailId)
     .select("id, organization_id")

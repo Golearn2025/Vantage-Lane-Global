@@ -1,11 +1,12 @@
+import { createHash, randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { requirePlatformSession } from "@/shared/lib/google/server";
-import { createHash, randomBytes } from "crypto";
 import { buildNetworkInviteEmail } from "@/emails/outreach/gt-invite";
 import {
   EMAIL_FROM_DEFAULT,
   EMAIL_REPLY_TO_DEFAULT,
 } from "@/shared/lib/email/brand";
+import { looseDb } from "@/shared/lib/supabase/loose";
 
 type Body = {
   organizationIds?: string[];
@@ -19,6 +20,8 @@ type InviteLeadRow = {
   contact_id: string | null;
   service_code: string | null;
 };
+
+type InvitationRow = { id: string };
 
 function hashToken(token: string) {
   return createHash("sha256").update(token, "utf8").digest("hex");
@@ -90,8 +93,9 @@ export async function POST(request: Request) {
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
     new URL(request.url).origin;
 
-  const { data: leadRows, error: viewErr } = await (auth.supabase as any)
-    .from("v_invite_leads")
+  const db = looseDb(auth.supabase);
+  const { data: leadRows, error: viewErr } = await db
+    .from<InviteLeadRow>("v_invite_leads")
     .select("organization_id, display_name, invite_email, contact_id, service_code")
     .in("organization_id", organizationIds);
 
@@ -106,7 +110,7 @@ export async function POST(request: Request) {
     invitationId?: string;
   }> = [];
 
-  for (const lead of (leadRows ?? []) as InviteLeadRow[]) {
+  for (const lead of (leadRows as InviteLeadRow[] | null) ?? []) {
     const email = lead.invite_email?.trim().toLowerCase() ?? "";
     if (!email) {
       results.push({
@@ -123,8 +127,8 @@ export async function POST(request: Request) {
     const inviteService = lead.service_code || serviceCode;
     const inviteUrl = `${origin}/join?invite=${token}`;
 
-    const { data: invitation, error: invErr } = await (auth.supabase as any)
-      .from("organization_invitations")
+    const { data: invitation, error: invErr } = await db
+      .from<InvitationRow>("organization_invitations")
       .insert({
         organization_id: lead.organization_id,
         email,
@@ -159,7 +163,7 @@ export async function POST(request: Request) {
         html: mail.html,
       });
 
-      await (auth.supabase as any)
+      await db
         .from("organization_invitations")
         .update({
           resend_message_id: resendId,
@@ -171,7 +175,7 @@ export async function POST(request: Request) {
         organization_id: lead.organization_id,
         contact_id: lead.contact_id,
         channel: "EMAIL",
-        action_type: "SENT_EMAIL" as "OPEN_EMAIL",
+        action_type: "SENT_EMAIL",
         subject: mail.subject,
         body_snapshot: inviteUrl,
         actor_user_id: auth.user.id,
@@ -189,7 +193,7 @@ export async function POST(request: Request) {
         invitationId: invitation.id,
       });
     } catch (err) {
-      await (auth.supabase as any)
+      await db
         .from("organization_invitations")
         .update({ last_email_status: "failed" })
         .eq("id", invitation.id);

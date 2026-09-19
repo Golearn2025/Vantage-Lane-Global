@@ -1,4 +1,5 @@
 import { createClient } from "@/shared/lib/supabase/client";
+import { looseDb } from "@/shared/lib/supabase/loose";
 import type { InviteLead } from "@/modules/invites/types";
 
 type InviteLeadRow = {
@@ -25,8 +26,8 @@ export async function listInviteLeads(filters?: {
   onlyWithEmail?: boolean;
 }): Promise<InviteLead[]> {
   const supabase = createClient();
-  let query = (supabase as any)
-    .from("v_invite_leads")
+  let query = looseDb(supabase)
+    .from<InviteLeadRow>("v_invite_leads")
     .select(
       "organization_id, display_name, legal_country_code, legal_city, service_code, service_name, invite_email, contact_name, invited_at, invite_accepted_at, converted_organization_id, last_email_status, opened_at, clicked_at, is_test",
     )
@@ -42,7 +43,7 @@ export async function listInviteLeads(filters?: {
   const { data, error } = await query;
   if (error) throw error;
 
-  let rows = (data ?? []) as InviteLeadRow[];
+  let rows = (data as InviteLeadRow[] | null) ?? [];
   const q = filters?.q?.trim().toLowerCase();
   if (q) {
     rows = rows.filter(
@@ -84,7 +85,7 @@ export async function sendNetworkInvites(opts: {
       serviceCode: opts.serviceCode,
     }),
   });
-  const json = await res.json();
+  const json = (await res.json()) as { error?: string };
   if (!res.ok) {
     throw new Error(json.error || "Failed to send invites");
   }
