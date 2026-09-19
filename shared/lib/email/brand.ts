@@ -43,7 +43,7 @@ export function emailShell(opts: {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0b0c0e;width:100%;">
     <tr>
       <td align="center" style="padding:48px 20px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;width:100%;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%;">
           <tr>
             <td align="center" style="padding:0 0 28px;">
               <img src="${EMAIL_LOGO_URL}" width="56" height="56" alt="Vantage Lane" style="display:block;width:56px;height:56px;border:0;" />
