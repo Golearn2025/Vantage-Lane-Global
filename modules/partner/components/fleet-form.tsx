@@ -291,9 +291,8 @@ export function PartnerFleetForm() {
       <div className="space-y-4">
         {entries.map((entry, idx) => {
           const catData = VL_CATEGORIES.find((c) => c.code === entry.vlCategory);
-          const makesForCat =
-            entry.vlCategory && entry.vlCategory !== ""
-              ? MAKES_BY_CATEGORY[entry.vlCategory as VLCategoryCode] ?? []
+          const makesForCat = entry.vlCategory
+              ? MAKES_BY_CATEGORY[entry.vlCategory] ?? []
               : [];
           const modelsForMake =
             makesForCat.find((m) => m.make === entry.make)?.models ?? [];

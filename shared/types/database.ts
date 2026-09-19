@@ -1466,6 +1466,7 @@ export type Database = {
           city: string | null
           country_code: string | null
           created_at: string
+          formatted_address: string | null
           google_place_id: string | null
           id: string
           is_primary: boolean
@@ -1474,6 +1475,7 @@ export type Database = {
           lng: number | null
           location_kind: Database["public"]["Enums"]["org_location_kind"]
           organization_id: string
+          place_id: string | null
           postal_code: string | null
           region: string | null
           timezone: string | null
@@ -1486,6 +1488,7 @@ export type Database = {
           city?: string | null
           country_code?: string | null
           created_at?: string
+          formatted_address?: string | null
           google_place_id?: string | null
           id?: string
           is_primary?: boolean
@@ -1494,6 +1497,7 @@ export type Database = {
           lng?: number | null
           location_kind?: Database["public"]["Enums"]["org_location_kind"]
           organization_id: string
+          place_id?: string | null
           postal_code?: string | null
           region?: string | null
           timezone?: string | null
@@ -1506,6 +1510,7 @@ export type Database = {
           city?: string | null
           country_code?: string | null
           created_at?: string
+          formatted_address?: string | null
           google_place_id?: string | null
           id?: string
           is_primary?: boolean
@@ -1514,6 +1519,7 @@ export type Database = {
           lng?: number | null
           location_kind?: Database["public"]["Enums"]["org_location_kind"]
           organization_id?: string
+          place_id?: string | null
           postal_code?: string | null
           region?: string | null
           timezone?: string | null
@@ -1709,6 +1715,7 @@ export type Database = {
           legal_name: string | null
           legal_postal_code: string | null
           legal_region: string | null
+          logo_url: string | null
           notes_public: string | null
           primary_email: string | null
           primary_phone_e164: string | null
@@ -1738,6 +1745,7 @@ export type Database = {
           legal_name?: string | null
           legal_postal_code?: string | null
           legal_region?: string | null
+          logo_url?: string | null
           notes_public?: string | null
           primary_email?: string | null
           primary_phone_e164?: string | null
@@ -1767,6 +1775,7 @@ export type Database = {
           legal_name?: string | null
           legal_postal_code?: string | null
           legal_region?: string | null
+          logo_url?: string | null
           notes_public?: string | null
           primary_email?: string | null
           primary_phone_e164?: string | null

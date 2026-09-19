@@ -469,7 +469,7 @@ export function PartnerShell({ children }: { children: React.ReactNode }) {
 
             {/* Right: profile pill */}
             <ProfileMenu
-              email={email}
+              email={email ?? undefined}
               displayName={displayName}
               logoUrl={logoUrl}
               onSignOut={handleSignOut}

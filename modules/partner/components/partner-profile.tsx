@@ -287,7 +287,7 @@ export function PartnerProfilePage() {
       {/* Account */}
       <section className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm">
         <h2 className="mb-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Account</h2>
-        <AccountInfo email={profile.data?.email} />
+        <AccountInfo email={profile.data?.email ?? undefined} />
       </section>
     </div>
   );

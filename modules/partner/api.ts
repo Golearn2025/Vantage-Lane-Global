@@ -157,18 +157,18 @@ export async function fetchPartnerOrgContext(): Promise<PartnerOrgContext | null
 
   const o = org as any;
   return {
-    organizationId: org.id,
-    displayName: org.display_name,
-    legalName: org.legal_name,
-    logoUrl: o.logo_url ?? null,
+    organizationId: o.id as string,
+    displayName: o.display_name as string,
+    legalName: (o.legal_name as string | null) ?? null,
+    logoUrl: (o.logo_url as string | null) ?? null,
     offeringId: offering.id,
     serviceCode: serviceCode ?? "GROUND_TRANSPORTATION",
     relationshipStatus: (p?.relationship_status as string) ?? null,
     partnershipId: (p?.id as string) ?? null,
     standardAcknowledgedAt: (p?.standard_acknowledged_at as string) ?? null,
-    primaryPhone: o.primary_phone_e164 ?? null,
-    legalCountryCode: o.legal_country_code ?? null,
-    legalCity: o.legal_city ?? null,
+    primaryPhone: (o.primary_phone_e164 as string | null) ?? null,
+    legalCountryCode: (o.legal_country_code as string | null) ?? null,
+    legalCity: (o.legal_city as string | null) ?? null,
   };
 }
 
