@@ -11,6 +11,7 @@ import { looseDb } from "@/shared/lib/supabase/loose";
 type Body = {
   organizationIds?: string[];
   serviceCode?: string;
+  skipAlreadyInvited?: boolean;
 };
 
 type InviteLeadRow = {
@@ -19,6 +20,9 @@ type InviteLeadRow = {
   invite_email: string | null;
   contact_id: string | null;
   service_code: string | null;
+  invite_accepted_at?: string | null;
+  last_email_status?: string | null;
+  invited_at?: string | null;
 };
 
 type InvitationRow = { id: string };
@@ -31,6 +35,8 @@ async function sendResendEmail(opts: {
   to: string;
   subject: string;
   html: string;
+  invitationId: string;
+  organizationId: string;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -51,6 +57,11 @@ async function sendResendEmail(opts: {
       reply_to: replyTo,
       subject: opts.subject,
       html: opts.html,
+      tags: [
+        { name: "invitation_id", value: opts.invitationId },
+        { name: "organization_id", value: opts.organizationId },
+        { name: "category", value: "network_invite" },
+      ],
     }),
   });
 
@@ -94,9 +105,12 @@ export async function POST(request: Request) {
     new URL(request.url).origin;
 
   const db = looseDb(auth.supabase);
+  const skipAlready = body.skipAlreadyInvited !== false;
   const { data: leadRows, error: viewErr } = await db
     .from<InviteLeadRow>("v_invite_leads")
-    .select("organization_id, display_name, invite_email, contact_id, service_code")
+    .select(
+      "organization_id, display_name, invite_email, contact_id, service_code, invite_accepted_at, last_email_status, invited_at",
+    )
     .in("organization_id", organizationIds);
 
   if (viewErr) {
@@ -108,9 +122,27 @@ export async function POST(request: Request) {
     ok: boolean;
     error?: string;
     invitationId?: string;
+    skipped?: boolean;
   }> = [];
 
   for (const lead of (leadRows as InviteLeadRow[] | null) ?? []) {
+    if (skipAlready) {
+      const status = (lead.last_email_status || "").toLowerCase();
+      const already =
+        Boolean(lead.invite_accepted_at) ||
+        Boolean(lead.invited_at) ||
+        ["sent", "queued", "delivered", "opened", "clicked", "signed_up"].includes(
+          status,
+        );
+      if (already) {
+        results.push({
+          organizationId: lead.organization_id,
+          ok: true,
+          skipped: true,
+        });
+        continue;
+      }
+    }
     const email = lead.invite_email?.trim().toLowerCase() ?? "";
     if (!email) {
       results.push({
@@ -161,6 +193,8 @@ export async function POST(request: Request) {
         to: email,
         subject: mail.subject,
         html: mail.html,
+        invitationId: invitation.id,
+        organizationId: lead.organization_id,
       });
 
       await db
@@ -205,10 +239,12 @@ export async function POST(request: Request) {
     }
   }
 
-  const sent = results.filter((r) => r.ok).length;
+  const sent = results.filter((r) => r.ok && !r.skipped).length;
+  const skipped = results.filter((r) => r.skipped).length;
   return NextResponse.json({
     sent,
-    failed: results.length - sent,
+    failed: results.length - sent - skipped,
+    skipped,
     results,
   });
 }

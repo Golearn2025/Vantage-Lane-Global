@@ -76,6 +76,7 @@ export async function listInviteLeads(filters?: {
 export async function sendNetworkInvites(opts: {
   organizationIds: string[];
   serviceCode?: string;
+  skipAlreadyInvited?: boolean;
 }) {
   const res = await fetch("/api/crm/invites", {
     method: "POST",
@@ -83,6 +84,7 @@ export async function sendNetworkInvites(opts: {
     body: JSON.stringify({
       organizationIds: opts.organizationIds,
       serviceCode: opts.serviceCode,
+      skipAlreadyInvited: opts.skipAlreadyInvited,
     }),
   });
   const json = (await res.json()) as { error?: string };
@@ -92,6 +94,12 @@ export async function sendNetworkInvites(opts: {
   return json as {
     sent: number;
     failed: number;
-    results: Array<{ organizationId: string; ok: boolean; error?: string }>;
+    skipped?: number;
+    results: Array<{
+      organizationId: string;
+      ok: boolean;
+      error?: string;
+      skipped?: boolean;
+    }>;
   };
 }

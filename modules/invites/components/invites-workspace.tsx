@@ -36,6 +36,18 @@ const SERVICE_FILTERS = [
   { value: "EVENTS", label: "Events" },
 ];
 
+const STATUS_FILTERS: { value: string; label: string }[] = [
+  { value: "not_sent", label: "Not sent (ready)" },
+  { value: "sent_family", label: "Already invited (sent+)" },
+  { value: "sent", label: "Sent" },
+  { value: "delivered", label: "Delivered" },
+  { value: "opened", label: "Opened" },
+  { value: "clicked", label: "Clicked" },
+  { value: "signed_up", label: "Signed up" },
+  { value: "failed", label: "Failed / bounced" },
+  { value: "all", label: "All statuses" },
+];
+
 const STATUS_STYLES: Record<InviteStatus, string> = {
   not_sent: "bg-muted text-muted-foreground",
   sent: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
@@ -58,8 +70,25 @@ const STATUS_LABEL: Record<InviteStatus, string> = {
   bounced: "Bounced",
 };
 
+const ALREADY_INVITED: InviteStatus[] = [
+  "sent",
+  "delivered",
+  "opened",
+  "clicked",
+  "signed_up",
+];
+
+function matchesStatusFilter(status: InviteStatus, filter: string) {
+  if (filter === "all") return true;
+  if (filter === "not_sent") return status === "not_sent";
+  if (filter === "sent_family") return ALREADY_INVITED.includes(status);
+  if (filter === "failed") return status === "failed" || status === "bounced";
+  return status === filter;
+}
+
 export function InvitesWorkspace() {
-  const [serviceCode, setServiceCode] = useState("GROUND_TRANSPORTATION");
+  const [serviceCode, setServiceCode] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("not_sent");
   const [q, setQ] = useState("");
   const [onlyWithEmail, setOnlyWithEmail] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -71,13 +100,28 @@ export function InvitesWorkspace() {
   });
   const sendInvites = useSendNetworkInvites();
 
-  const rows = data ?? [];
+  const rows = useMemo(() => {
+    const list = data ?? [];
+    return list.filter((r) =>
+      matchesStatusFilter(deriveInviteStatus(r), statusFilter),
+    );
+  }, [data, statusFilter]);
+
   const selectedIds = useMemo(
     () => Object.entries(selected).filter(([, v]) => v).map(([id]) => id),
     [selected],
   );
 
-  const selectable = rows.filter((r) => Boolean(r.inviteEmail));
+  /** Only email + not already invited (unless viewing already-invited filter) */
+  const selectable = rows.filter((r) => {
+    if (!r.inviteEmail) return false;
+    const st = deriveInviteStatus(r);
+    if (statusFilter === "not_sent") return st === "not_sent";
+    if (ALREADY_INVITED.includes(st) && statusFilter !== "failed") {
+      return statusFilter === "sent_family" || statusFilter === st;
+    }
+    return st === "not_sent" || st === "failed" || st === "bounced";
+  });
 
   function toggleAll(checked: boolean) {
     if (!checked) {
@@ -91,15 +135,20 @@ export function InvitesWorkspace() {
 
   async function handleSend() {
     if (selectedIds.length === 0) {
-      toast.error("Select at least one lead with email");
+      toast.error("Select at least one lead ready to invite");
       return;
     }
     try {
       const res = await sendInvites.mutateAsync({
         organizationIds: selectedIds,
-        serviceCode: serviceCode === "all" ? "GROUND_TRANSPORTATION" : serviceCode,
+        serviceCode:
+          serviceCode === "all" ? "GROUND_TRANSPORTATION" : serviceCode,
+        skipAlreadyInvited: true,
       });
-      toast.success(`Sent ${res.sent} · failed ${res.failed}`);
+      const skipped = (res as { skipped?: number }).skipped ?? 0;
+      toast.success(
+        `Sent ${res.sent} · failed ${res.failed}${skipped ? ` · skipped ${skipped}` : ""}`,
+      );
       setSelected({});
       void refetch();
     } catch (err) {
@@ -113,9 +162,8 @@ export function InvitesWorkspace() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Invites</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Outreach to LEAD prospects. They join via /join and create a new
-            partner org — leads stay separate. Track sent / opened / signed up
-            here.
+            Default view = not sent yet. Opened/clicked need the Resend webhook
+            configured. Signed up appears after they finish /join.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -142,15 +190,24 @@ export function InvitesWorkspace() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/40 p-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/40 p-3 lg:flex-row lg:flex-wrap lg:items-center">
         <Input
           placeholder="Search company or email…"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="sm:max-w-xs"
+          onChange={(e) => {
+            setQ(e.target.value);
+            setSelected({});
+          }}
+          className="lg:max-w-xs"
         />
-        <Select value={serviceCode} onValueChange={setServiceCode}>
-          <SelectTrigger className="sm:w-56">
+        <Select
+          value={serviceCode}
+          onValueChange={(v) => {
+            setServiceCode(v);
+            setSelected({});
+          }}
+        >
+          <SelectTrigger className="lg:w-52">
             <SelectValue placeholder="Service" />
           </SelectTrigger>
           <SelectContent>
@@ -161,13 +218,38 @@ export function InvitesWorkspace() {
             ))}
           </SelectContent>
         </Select>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => {
+            setStatusFilter(v);
+            setSelected({});
+          }}
+        >
+          <SelectTrigger className="lg:w-56">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_FILTERS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           <Checkbox
             checked={onlyWithEmail}
-            onCheckedChange={(v) => setOnlyWithEmail(Boolean(v))}
+            onCheckedChange={(v) => {
+              setOnlyWithEmail(Boolean(v));
+              setSelected({});
+            }}
           />
           Only with email
         </label>
+        <p className="text-xs text-muted-foreground lg:ml-auto">
+          Showing {rows.length}
+          {data ? ` of ${data.length}` : ""}
+        </p>
       </div>
 
       {isLoading ? (
@@ -185,12 +267,11 @@ export function InvitesWorkspace() {
           <Mail className="mx-auto mb-3 size-8 text-muted-foreground" />
           <p className="font-medium">No matching leads</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add emails on LEAD organizations, then invite them from here.
+            Change the status filter (e.g. All / Already invited) or search.
           </p>
         </div>
       ) : (
         <>
-          {/* Desktop table */}
           <div className="hidden overflow-hidden rounded-2xl border border-border/60 md:block">
             <table className="w-full text-sm">
               <thead className="border-b border-border/60 bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -218,6 +299,9 @@ export function InvitesWorkspace() {
                     key={row.organizationId}
                     row={row}
                     checked={Boolean(selected[row.organizationId])}
+                    canSelect={selectable.some(
+                      (s) => s.organizationId === row.organizationId,
+                    )}
                     onCheckedChange={(v) =>
                       setSelected((prev) => ({
                         ...prev,
@@ -230,7 +314,6 @@ export function InvitesWorkspace() {
             </table>
           </div>
 
-          {/* Mobile cards */}
           <div className="space-y-3 md:hidden">
             <label className="flex items-center gap-2 px-1 text-sm">
               <Checkbox
@@ -240,11 +323,13 @@ export function InvitesWorkspace() {
                 }
                 onCheckedChange={(v) => toggleAll(Boolean(v))}
               />
-              Select all with email
+              Select all ready to send
             </label>
             {rows.map((row) => {
               const status = deriveInviteStatus(row);
-              const canSelect = Boolean(row.inviteEmail);
+              const canSelect = selectable.some(
+                (s) => s.organizationId === row.organizationId,
+              );
               return (
                 <div
                   key={row.organizationId}
@@ -301,14 +386,15 @@ export function InvitesWorkspace() {
 function InviteTableRow({
   row,
   checked,
+  canSelect,
   onCheckedChange,
 }: {
   row: InviteLead;
   checked: boolean;
+  canSelect: boolean;
   onCheckedChange: (v: boolean) => void;
 }) {
   const status = deriveInviteStatus(row);
-  const canSelect = Boolean(row.inviteEmail);
   return (
     <tr className="border-b border-border/40 last:border-0 hover:bg-muted/20">
       <td className="px-3 py-3">
@@ -334,9 +420,7 @@ function InviteTableRow({
         {serviceLabel(row.serviceCode)}
       </td>
       <td className="px-3 py-3">
-        {row.inviteEmail || (
-          <span className="text-muted-foreground">—</span>
-        )}
+        {row.inviteEmail || <span className="text-muted-foreground">—</span>}
       </td>
       <td className="px-3 py-3">
         <span
