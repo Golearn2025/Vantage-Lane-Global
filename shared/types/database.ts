@@ -1694,6 +1694,10 @@ export type Database = {
           created_by_user_id: string | null
           display_name: string
           google_place_id: string | null
+          google_rating: number | null
+          google_review_count: number | null
+          google_reviews_checked_at: string | null
+          google_reviews_note: string | null
           id: string
           is_test: boolean
           legal_address_line1: string | null
@@ -1719,6 +1723,10 @@ export type Database = {
           created_by_user_id?: string | null
           display_name: string
           google_place_id?: string | null
+          google_rating?: number | null
+          google_review_count?: number | null
+          google_reviews_checked_at?: string | null
+          google_reviews_note?: string | null
           id?: string
           is_test?: boolean
           legal_address_line1?: string | null
@@ -1744,6 +1752,10 @@ export type Database = {
           created_by_user_id?: string | null
           display_name?: string
           google_place_id?: string | null
+          google_rating?: number | null
+          google_review_count?: number | null
+          google_reviews_checked_at?: string | null
+          google_reviews_note?: string | null
           id?: string
           is_test?: boolean
           legal_address_line1?: string | null
@@ -2370,6 +2382,82 @@ export type Database = {
           service_code: string | null
           service_name: string | null
           updated_at: string | null
+        }
+        Relationships: []
+      }
+      v_network_place_suppliers: {
+        Row: {
+          location_id: string | null
+          location_name: string | null
+          location_kind:
+            | Database["public"]["Enums"]["location_kind"]
+            | null
+          iata: string | null
+          icao: string | null
+          location_country_code: string | null
+          location_lat: number | null
+          location_lng: number | null
+          organization_id: string | null
+          display_name: string | null
+          legal_name: string | null
+          legal_country_code: string | null
+          is_test: boolean | null
+          archived_at: string | null
+          partnership_id: string | null
+          relationship_status:
+            | Database["public"]["Enums"]["relationship_status"]
+            | null
+          relationship_status_changed_at: string | null
+          offering_id: string | null
+          operational_status:
+            | Database["public"]["Enums"]["operational_status"]
+            | null
+          service_code: string | null
+          service_name: string | null
+          coverage_id: string | null
+          coverage_mode: Database["public"]["Enums"]["coverage_mode"] | null
+          is_informational_only: boolean | null
+          primary_base_id: string | null
+          primary_base_label: string | null
+          primary_base_city: string | null
+          primary_base_country_code: string | null
+          primary_base_lat: number | null
+          primary_base_lng: number | null
+        }
+        Relationships: []
+      }
+      v_network_organizations: {
+        Row: {
+          organization_id: string | null
+          display_name: string | null
+          legal_name: string | null
+          legal_country_code: string | null
+          is_test: boolean | null
+          archived_at: string | null
+          created_at: string | null
+          google_rating: number | null
+          google_review_count: number | null
+          google_reviews_note: string | null
+          partnership_id: string | null
+          relationship_status:
+            | Database["public"]["Enums"]["relationship_status"]
+            | null
+          relationship_status_changed_at: string | null
+          offering_id: string | null
+          operational_status:
+            | Database["public"]["Enums"]["operational_status"]
+            | null
+          service_code: string | null
+          service_name: string | null
+          primary_base_id: string | null
+          primary_base_label: string | null
+          primary_base_city: string | null
+          primary_base_region: string | null
+          primary_base_country_code: string | null
+          primary_base_lat: number | null
+          primary_base_lng: number | null
+          coverage_count: number | null
+          coverage_airport_iatas: string[] | null
         }
         Relationships: []
       }

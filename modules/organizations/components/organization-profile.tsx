@@ -2,14 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Copy, Mail, MessageCircle, MoreHorizontal } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, Car, Copy, FileText, Mail, MessageCircle, MoreHorizontal, ShieldCheck, Tag, Trash2 } from "lucide-react";
 import {
   useAddCoverage,
+  useArchiveBase,
   useArchiveContact,
   useArchiveCoverage,
   useChangeRelationshipStatus,
+  useDeleteOrganization,
   useLogCommunication,
-  useLocationsCatalog,
   useOrganizationActivities,
   useOrganizationBases,
   useOrganizationContacts,
@@ -18,6 +20,7 @@ import {
   useUpsertBase,
   useUpsertContact,
 } from "@/modules/organizations/hooks";
+import { useOrganizationProfileRealtime } from "@/modules/organizations/realtime";
 import {
   OperationalStatusBadge,
   RelationshipStatusBadge,
@@ -55,6 +58,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/shared/ui/dropdown-menu";
 import {
@@ -66,6 +70,8 @@ import {
 } from "@/shared/ui/dialog";
 import { toast } from "sonner";
 import { useSessionProfile } from "@/modules/identity/session";
+import { LocationSearchPicker } from "@/modules/network/components/location-search-picker";
+import { CoverageComposer } from "@/modules/organizations/components/coverage-composer";
 import type { OrganizationContact, OrganizationBase } from "@/modules/organizations/types";
 
 function whatsappHref(number: string) {
@@ -82,8 +88,10 @@ export function OrganizationProfile({
 }: {
   organizationId: string;
 }) {
+  const router = useRouter();
   const { data: profile } = useSessionProfile();
   const overview = useOrganizationOverview(organizationId);
+  useOrganizationProfileRealtime(organizationId);
   const contacts = useOrganizationContacts(organizationId);
   const bases = useOrganizationBases(organizationId);
   const coverage = useOrganizationCoverage(organizationId);
@@ -101,17 +109,19 @@ export function OrganizationProfile({
   const [statusOpen, setStatusOpen] = useState(false);
   const [nextStatus, setNextStatus] = useState<RelationshipStatus>("CONTACTED");
   const [statusNote, setStatusNote] = useState("");
-  const [locationQuery, setLocationQuery] = useState("");
-  const locations = useLocationsCatalog(locationQuery);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
 
   const upsertContact = useUpsertContact(organizationId);
   const archiveContact = useArchiveContact(organizationId);
   const upsertBase = useUpsertBase(organizationId);
+  const archiveBase = useArchiveBase(organizationId);
   const addCoverage = useAddCoverage(
     organizationId,
     overview.data?.offeringId ?? null,
   );
   const archiveCoverage = useArchiveCoverage(organizationId);
+  const deleteOrg = useDeleteOrganization();
 
   const org = overview.data;
 
@@ -183,60 +193,48 @@ export function OrganizationProfile({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="text-sm text-muted-foreground">
-        <Link href="/organizations" className="hover:underline">
+    <div className="mx-auto max-w-4xl space-y-5 px-1 sm:px-0">
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Link href="/organizations" className="hover:text-foreground hover:underline">
           Organizations
-        </Link>{" "}
-        / {org.displayName}
-      </div>
+        </Link>
+        <span>/</span>
+        <span className="text-foreground">{org.displayName}</span>
+      </nav>
 
-      <section className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="bg-[linear-gradient(135deg,_hsl(var(--primary)/0.16),_transparent_55%)] p-6 md:p-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0 space-y-3">
+      {/* ─── Hero ─── */}
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        {/* accent strip */}
+        <div className="h-1.5 bg-primary/60" />
+
+        <div className="px-6 py-5 md:px-8 md:py-6">
+          {/* top row: name + actions */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-display text-3xl tracking-tight md:text-4xl">
+                <h1 className="font-display text-2xl tracking-tight md:text-3xl">
                   {org.displayName}
                 </h1>
                 {org.isTest ? <TestBadge /> : null}
               </div>
               {org.legalName ? (
-                <p className="text-sm text-muted-foreground">{org.legalName}</p>
+                <p className="text-xs text-muted-foreground">{org.legalName}</p>
               ) : null}
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="primary">
-                  {org.serviceName ?? "Ground Transportation"}
-                </Badge>
+              <div className="flex flex-wrap gap-1.5">
+                <Badge variant="primary">{org.serviceName ?? "Ground Transportation"}</Badge>
                 <RelationshipStatusBadge status={org.relationshipStatus} />
                 <OperationalStatusBadge status={org.operationalStatus} />
                 {org.legalCountryCode ? (
                   <Badge variant="outline">{org.legalCountryCode}</Badge>
                 ) : null}
               </div>
-              <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-                <p>
-                  Primary base:{" "}
-                  <span className="text-foreground">
-                    {[org.primaryBaseLabel, org.primaryBaseCity]
-                      .filter(Boolean)
-                      .join(" · ") || "—"}
-                  </span>
-                </p>
-                <p>
-                  Coverage:{" "}
-                  <span className="text-foreground">
-                    {org.coverageCount}
-                    {org.coverageAirportIatas.length
-                      ? ` · ${org.coverageAirportIatas.join(", ")}`
-                      : ""}
-                  </span>
-                </p>
-              </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            {/* CTA buttons */}
+            <div className="flex shrink-0 flex-wrap gap-2">
               <Button
+                size="sm"
                 onClick={handleOpenWhatsApp}
                 disabled={!outreachTargets.whatsapp}
               >
@@ -244,6 +242,7 @@ export function OrganizationProfile({
                 WhatsApp
               </Button>
               <Button
+                size="sm"
                 variant="secondary"
                 onClick={handleOpenEmail}
                 disabled={!outreachTargets.email}
@@ -253,9 +252,8 @@ export function OrganizationProfile({
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline">
+                  <Button size="sm" variant="outline">
                     <MoreHorizontal className="h-4 w-4" />
-                    More
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -264,125 +262,272 @@ export function OrganizationProfile({
                     onClick={handleCopyWhatsApp}
                   >
                     <Copy className="mr-2 h-4 w-4" />
-                    Copy WhatsApp
+                    Copy WhatsApp number
                   </DropdownMenuItem>
                   {profile?.canManageNetwork ? (
                     <DropdownMenuItem onClick={() => setStatusOpen(true)}>
                       Change relationship status
                     </DropdownMenuItem>
                   ) : null}
+                  {profile?.canManageNetwork ? (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-danger focus:text-danger"
+                        onClick={() => {
+                          setDeleteConfirmName("");
+                          setDeleteOpen(true);
+                        }}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete organization…
+                      </DropdownMenuItem>
+                    </>
+                  ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
+
+          {/* key facts bar */}
+          <dl className="mt-5 grid grid-cols-2 gap-x-8 gap-y-3 border-t border-border pt-4 text-sm sm:grid-cols-4">
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Base
+              </dt>
+              <dd className="mt-0.5 truncate font-medium">
+                {[org.primaryBaseLabel, org.primaryBaseCity].filter(Boolean).join(" · ") || "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Coverage
+              </dt>
+              <dd className="mt-0.5 font-medium">
+                {org.coverageCount > 0
+                  ? `${org.coverageCount} location${org.coverageCount !== 1 ? "s" : ""}`
+                  : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Airports
+              </dt>
+              <dd className="mt-0.5 truncate font-medium">
+                {org.coverageAirportIatas.length
+                  ? org.coverageAirportIatas.join(", ")
+                  : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Website
+              </dt>
+              <dd className="mt-0.5 truncate font-medium">
+                {org.websiteUrl ? (
+                  <a
+                    href={org.websiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    {org.websiteDomain ?? org.websiteUrl}
+                  </a>
+                ) : (
+                  "—"
+                )}
+              </dd>
+            </div>
+          </dl>
         </div>
       </section>
 
+      {/* ─── Tabs ─── */}
       <Tabs defaultValue="overview">
-        <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="contacts">Contacts</TabsTrigger>
-          <TabsTrigger value="coverage">Coverage</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto">
+          <TabsList className="flex w-max min-w-full justify-start gap-0 border-b border-border bg-transparent p-0">
+            {(
+              [
+                { value: "overview", label: "Overview" },
+                { value: "contacts", label: "Contacts" },
+                { value: "coverage", label: "Coverage", count: org.coverageCount },
+                { value: "fleet", label: "Fleet", soon: true },
+                { value: "pricing", label: "Pricing", soon: true },
+                { value: "documents", label: "Documents", soon: true },
+                { value: "standards", label: "Standards", soon: true },
+                { value: "activity", label: "Activity" },
+              ] as const
+            ).map((tab) => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="relative rounded-none border-b-2 border-transparent px-4 pb-2.5 pt-1.5 text-sm font-medium data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground"
+              >
+                {tab.label}
+                {"count" in tab && tab.count > 0 ? (
+                  <span className="ml-1.5 rounded-full bg-muted px-1.5 py-px text-[10px] text-muted-foreground">
+                    {tab.count}
+                  </span>
+                ) : null}
+                {"soon" in tab && tab.soon ? (
+                  <span className="ml-1.5 rounded-full bg-muted px-1.5 py-px text-[10px] text-muted-foreground/60">
+                    soon
+                  </span>
+                ) : null}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
+        {/* ── Overview ── */}
+        <TabsContent value="overview" className="mt-4 space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Primary contact */}
             <Card>
-              <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>Primary contact</CardTitle>
+              <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Primary contact
+                </CardTitle>
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="ghost"
+                  className="h-7 text-xs"
                   onClick={() => {
                     setEditingContact(null);
                     setContactOpen(true);
                   }}
                 >
-                  Add
+                  + Add
                 </Button>
               </CardHeader>
-              <CardContent className="space-y-1 text-sm">
-                <p className="font-medium">
-                  {org.primaryContactName ?? "No primary contact"}
-                </p>
-                <p className="text-muted-foreground">
-                  {org.primaryContactType ?? "—"}
-                </p>
-                <p>{org.primaryContactEmail ?? "—"}</p>
-                <p>{org.primaryContactWhatsappE164 ?? "—"}</p>
+              <CardContent className="pt-0">
+                {org.primaryContactName ? (
+                  <div className="space-y-0.5">
+                    <p className="font-medium">{org.primaryContactName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[org.primaryContactType, org.primaryContactEmail]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                    {org.primaryContactWhatsappE164 ? (
+                      <p className="text-xs text-muted-foreground">
+                        WhatsApp: {org.primaryContactWhatsappE164}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No primary contact yet</p>
+                )}
               </CardContent>
             </Card>
 
+            {/* Primary base */}
             <Card>
-              <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>Primary base</CardTitle>
+              <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Operational base
+                </CardTitle>
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="ghost"
+                  className="h-7 text-xs"
                   onClick={() => {
                     setEditingBase(null);
                     setBaseOpen(true);
                   }}
                 >
-                  Add base
+                  + Add
                 </Button>
               </CardHeader>
-              <CardContent className="space-y-1 text-sm">
-                <p className="font-medium">{org.primaryBaseLabel ?? "No base"}</p>
-                <p className="text-muted-foreground">
-                  {[org.primaryBaseCity, org.primaryBaseRegion, org.primaryBaseCountryCode]
-                    .filter(Boolean)
-                    .join(", ") || "—"}
-                </p>
-                <div className="mt-3 space-y-2">
-                  {(bases.data ?? []).map((base) => (
-                    <button
-                      key={base.id}
-                      type="button"
-                      className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-left hover:bg-muted/50"
-                      onClick={() => {
-                        setEditingBase(base);
-                        setBaseOpen(true);
-                      }}
-                    >
-                      <span>
-                        {base.label}
-                        {base.isPrimary ? " · Primary" : ""}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {base.city}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+              <CardContent className="space-y-1.5 pt-0">
+                {org.primaryBaseLabel ? (
+                  <div>
+                    <p className="font-medium">{org.primaryBaseLabel}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[org.primaryBaseCity, org.primaryBaseRegion, org.primaryBaseCountryCode]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No base yet</p>
+                )}
+                {(bases.data ?? []).length > 0 ? (
+                  <div className="mt-2 space-y-1 border-t border-border pt-2">
+                    {(bases.data ?? []).map((base) => (
+                      <div
+                        key={base.id}
+                        className="flex items-center justify-between gap-2 text-xs"
+                      >
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-center gap-1.5 text-left hover:opacity-70"
+                          onClick={() => {
+                            setEditingBase(base);
+                            setBaseOpen(true);
+                          }}
+                        >
+                          <span className="truncate text-foreground">{base.label}</span>
+                          {base.isPrimary ? (
+                            <Badge variant="primary" className="py-px text-[10px]">
+                              Primary
+                            </Badge>
+                          ) : null}
+                          {base.city ? (
+                            <span className="text-muted-foreground">· {base.city}</span>
+                          ) : null}
+                        </button>
+                        <button
+                          type="button"
+                          className="shrink-0 text-muted-foreground hover:text-danger"
+                          onClick={() => {
+                            if (confirm("Archive this base?")) archiveBase.mutate(base.id);
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
 
+            {/* Lifecycle */}
             <Card>
-              <CardHeader>
-                <CardTitle>Relationship & ops</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Lifecycle
+                </CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
+              <CardContent className="flex flex-wrap items-center gap-2 pt-0">
                 <RelationshipStatusBadge status={org.relationshipStatus} />
                 <OperationalStatusBadge status={org.operationalStatus} />
                 {profile?.canManageNetwork ? (
-                  <Button size="sm" variant="outline" onClick={() => setStatusOpen(true)}>
-                    Update lifecycle
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto h-7 text-xs"
+                    onClick={() => setStatusOpen(true)}
+                  >
+                    Update
                   </Button>
                 ) : null}
               </CardContent>
             </Card>
 
+            {/* Next action */}
             <Card>
-              <CardHeader>
-                <CardTitle>Next action</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Next action
+                </CardTitle>
               </CardHeader>
-              <CardContent className="text-sm">
+              <CardContent className="pt-0 text-sm">
                 {org.nextActionTitle ? (
                   <>
                     <p className="font-medium">{org.nextActionTitle}</p>
-                    <p className="mt-1 text-muted-foreground">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       Due {formatDateTime(org.nextActionDueAt)}
                     </p>
                   </>
@@ -393,30 +538,43 @@ export function OrganizationProfile({
             </Card>
           </div>
 
+          {/* Activity feed */}
           <Card>
-            <CardHeader>
-              <CardTitle>Recent activity</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Recent activity
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {(activities.data ?? []).slice(0, 5).map((activity) => (
-                <div key={activity.id} className="border-b border-border pb-3 last:border-0">
-                  <p className="text-sm font-medium">{activity.summary}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDateTime(activity.occurredAt)} · {activity.activityType}
+            <CardContent className="space-y-0 pt-0">
+              {(activities.data ?? []).slice(0, 6).map((activity, idx, arr) => (
+                <div
+                  key={activity.id}
+                  className={`py-3 text-sm ${idx < arr.length - 1 ? "border-b border-border" : ""}`}
+                >
+                  <p className="font-medium leading-snug">{activity.summary}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {formatDateTime(activity.occurredAt)}
+                    <span className="mx-1 text-border">·</span>
+                    {activity.activityType}
                   </p>
                 </div>
               ))}
               {(activities.data ?? []).length === 0 ? (
-                <p className="text-sm text-muted-foreground">No activity yet</p>
+                <p className="py-4 text-sm text-muted-foreground">No activity yet</p>
               ) : null}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="contacts" className="space-y-4">
-          <div className="flex justify-between">
-            <h2 className="font-display text-xl">Contacts</h2>
+        {/* ── Contacts ── */}
+        <TabsContent value="contacts" className="mt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-muted-foreground">
+              {(contacts.data ?? []).length} contact
+              {(contacts.data ?? []).length !== 1 ? "s" : ""}
+            </p>
             <Button
+              size="sm"
               onClick={() => {
                 setEditingContact(null);
                 setContactOpen(true);
@@ -425,30 +583,55 @@ export function OrganizationProfile({
               Add contact
             </Button>
           </div>
-          <div className="grid gap-3">
-            {(contacts.data ?? []).map((contact) => (
-              <Card key={contact.id}>
-                <CardContent className="flex items-start justify-between gap-3 p-4">
-                  <div>
-                    <p className="font-medium">
-                      {contact.fullName}
+
+          {(contacts.data ?? []).length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border py-10 text-center">
+              <p className="text-sm text-muted-foreground">No contacts yet</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3"
+                onClick={() => {
+                  setEditingContact(null);
+                  setContactOpen(true);
+                }}
+              >
+                Add first contact
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border">
+              {(contacts.data ?? []).map((contact, idx, arr) => (
+                <div
+                  key={contact.id}
+                  className={`flex items-start justify-between gap-4 px-4 py-3 ${
+                    idx < arr.length - 1 ? "border-b border-border" : ""
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium">{contact.fullName}</span>
                       {contact.isPrimary ? (
-                        <Badge className="ml-2" variant="primary">
+                        <Badge variant="primary" className="py-px text-[10px]">
                           Primary
                         </Badge>
                       ) : null}
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {[contact.contactType, contact.title].filter(Boolean).join(" · ")}
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                      {contact.contactType ?? "Other"}
-                      {contact.title ? ` · ${contact.title}` : ""}
-                    </p>
-                    <p className="mt-1 text-sm">{contact.email ?? "—"}</p>
-                    <p className="text-sm">{contact.whatsappE164 ?? contact.phoneE164 ?? "—"}</p>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                      {contact.email ? <span>{contact.email}</span> : null}
+                      {contact.whatsappE164 ?? contact.phoneE164 ? (
+                        <span>{contact.whatsappE164 ?? contact.phoneE164}</span>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex shrink-0 gap-1.5">
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="ghost"
+                      className="h-7 text-xs"
                       onClick={() => {
                         setEditingContact(contact);
                         setContactOpen(true);
@@ -459,77 +642,157 @@ export function OrganizationProfile({
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="h-7 text-xs text-muted-foreground hover:text-danger"
                       onClick={() => {
-                        if (confirm("Archive this contact?")) {
-                          archiveContact.mutate(contact.id);
-                        }
+                        if (confirm("Archive this contact?")) archiveContact.mutate(contact.id);
                       }}
                     >
-                      Archive
+                      ×
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-            {(contacts.data ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No contacts yet</p>
-            ) : null}
-          </div>
+                </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="coverage" className="space-y-4">
-          <div className="flex justify-between">
-            <h2 className="font-display text-xl">Coverage</h2>
-            <Button onClick={() => setCoverageOpen(true)}>Add coverage</Button>
+        {/* ── Coverage ── */}
+        <TabsContent value="coverage" className="mt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-muted-foreground">
+              {org.coverageCount} location{org.coverageCount !== 1 ? "s" : ""} on network
+            </p>
+            <Button size="sm" onClick={() => setCoverageOpen(true)}>
+              Add coverage
+            </Button>
           </div>
-          <div className="grid gap-3">
-            {(coverage.data ?? []).map((item) => (
-              <Card key={item.id}>
-                <CardContent className="flex items-center justify-between gap-3 p-4">
-                  <div>
-                    <p className="font-medium">
-                      {item.locationName ?? "Location"}
-                      {item.iata ? ` (${item.iata})` : ""}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {item.coverageMode}
+
+          {(coverage.data ?? []).length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border py-10 text-center">
+              <p className="text-sm text-muted-foreground">No coverage yet</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3"
+                onClick={() => setCoverageOpen(true)}
+              >
+                Add first coverage
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border">
+              {(coverage.data ?? []).map((item, idx, arr) => (
+                <div
+                  key={item.id}
+                  className={`flex items-center gap-4 px-4 py-3 ${
+                    idx < arr.length - 1 ? "border-b border-border" : ""
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium">
+                        {item.locationName ?? "Location"}
+                      </span>
+                      {item.iata ? (
+                        <Badge variant="outline" className="py-px text-[10px]">
+                          {item.iata}
+                        </Badge>
+                      ) : null}
+                      {item.coverageMode === "RADIUS" ? (
+                        <Badge variant="muted" className="py-px text-[10px]">
+                          Radius
+                        </Badge>
+                      ) : item.coverageMode === "AIRPORT_EXPLICIT" ? (
+                        <Badge variant="muted" className="py-px text-[10px]">
+                          Airport
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {item.radiusValue != null
+                        ? `${item.radiusValue} ${item.radiusUnit ?? "km"} radius`
+                        : item.coverageMode.replace(/_/g, " ").toLowerCase()}
                       {item.countryCode ? ` · ${item.countryCode}` : ""}
                     </p>
                   </div>
                   <Button
                     size="sm"
                     variant="ghost"
+                    className="h-7 shrink-0 text-xs text-muted-foreground hover:text-danger"
                     onClick={() => {
-                      if (confirm("Archive this coverage?")) {
-                        archiveCoverage.mutate(item.id);
-                      }
+                      if (confirm("Archive this coverage?")) archiveCoverage.mutate(item.id);
                     }}
                   >
-                    Archive
+                    ×
                   </Button>
-                </CardContent>
-              </Card>
-            ))}
-            {(coverage.data ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No coverage yet</p>
-            ) : null}
-          </div>
+                </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="activity" className="space-y-3">
-          {(activities.data ?? []).map((activity) => (
-            <Card key={activity.id}>
-              <CardContent className="p-4">
-                <p className="font-medium">{activity.summary}</p>
-                {activity.body ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{activity.body}</p>
-                ) : null}
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {formatDateTime(activity.occurredAt)} · {activity.activityType}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+        {/* ── Fleet ── */}
+        <TabsContent value="fleet" className="mt-4">
+          <ComingSoonPlaceholder
+            icon={<Car className="h-8 w-8" />}
+            title="Fleet"
+            description="Vehicle categories, quantities, year and quality hints. Needed before this operator can receive jobs."
+          />
+        </TabsContent>
+
+        {/* ── Pricing ── */}
+        <TabsContent value="pricing" className="mt-4">
+          <ComingSoonPlaceholder
+            icon={<Tag className="h-8 w-8" />}
+            title="Pricing"
+            description="Fixed transfers, airport transfers, distance-based rates, hourly / daily, surcharges. Rate card per vehicle category and currency."
+          />
+        </TabsContent>
+
+        {/* ── Documents ── */}
+        <TabsContent value="documents" className="mt-4">
+          <ComingSoonPlaceholder
+            icon={<FileText className="h-8 w-8" />}
+            title="Documents"
+            description="Insurance, licences, vehicle age certs, airport permits. Records + files with expiry warnings."
+          />
+        </TabsContent>
+
+        {/* ── Standards ── */}
+        <TabsContent value="standards" className="mt-4">
+          <ComingSoonPlaceholder
+            icon={<ShieldCheck className="h-8 w-8" />}
+            title="Operational standards"
+            description="VL-controlled checklist: vehicle presentation, chauffeur dress code, meet & greet, GPS tracking. Pass / fail tracked per operator."
+          />
+        </TabsContent>
+
+        {/* ── Activity ── */}
+        <TabsContent value="activity" className="mt-4">
+          {(activities.data ?? []).length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border py-10 text-center">
+              <p className="text-sm text-muted-foreground">No activity logged yet</p>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border">
+              {(activities.data ?? []).map((activity, idx, arr) => (
+                <div
+                  key={activity.id}
+                  className={`px-4 py-3 ${idx < arr.length - 1 ? "border-b border-border" : ""}`}
+                >
+                  <p className="text-sm font-medium leading-snug">{activity.summary}</p>
+                  {activity.body ? (
+                    <p className="mt-0.5 text-xs text-muted-foreground">{activity.body}</p>
+                  ) : null}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {formatDateTime(activity.occurredAt)}
+                    <span className="mx-1 text-border">·</span>
+                    {activity.activityType}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -563,43 +826,80 @@ export function OrganizationProfile({
       />
 
       <Sheet open={coverageOpen} onOpenChange={setCoverageOpen}>
-        <SheetContent>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           <SheetHeader>
             <SheetTitle>Add coverage</SheetTitle>
             <SheetDescription>
-              Select an airport or location from the catalog.
+              Search a place, then set the service radius on the map.
             </SheetDescription>
           </SheetHeader>
-          <div className="mt-4 space-y-3">
-            <Input
-              placeholder="Search airports…"
-              value={locationQuery}
-              onChange={(event) => setLocationQuery(event.target.value)}
+          <div className="mt-4">
+            <CoverageComposer
+              confirmLabel="Save coverage"
+              allowSecondaries={false}
+              pending={addCoverage.isPending}
+              onConfirm={async (draft) => {
+                await addCoverage.mutateAsync({
+                  locationId: draft.locationId,
+                  coverageMode: draft.coverageMode,
+                  radiusKm: draft.radiusKm,
+                });
+                setCoverageOpen(false);
+              }}
             />
-            <div className="max-h-[60vh] space-y-1 overflow-auto">
-              {(locations.data ?? []).map((location) => (
-                <button
-                  key={location.id}
-                  type="button"
-                  className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted"
-                  onClick={async () => {
-                    await addCoverage.mutateAsync(location.id);
-                    setCoverageOpen(false);
-                  }}
-                >
-                  <span>
-                    {location.name}
-                    {location.iata ? ` (${location.iata})` : ""}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {location.kind}
-                  </span>
-                </button>
-              ))}
-            </div>
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* ── Delete confirmation dialog ── */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-danger">
+              <AlertTriangle className="h-5 w-5" />
+              Delete organization permanently
+            </DialogTitle>
+            <DialogDescription>
+              This removes <strong>{org.displayName}</strong> and all related
+              data (contacts, bases, coverage, activity, communications) from the
+              database. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">
+                Type <span className="font-mono font-semibold">{org.displayName}</span> to confirm
+              </Label>
+              <Input
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                placeholder={org.displayName}
+                autoComplete="off"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setDeleteOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                className="flex-1"
+                disabled={
+                  deleteConfirmName.trim() !== org.displayName.trim() ||
+                  deleteOrg.isPending
+                }
+                onClick={async () => {
+                  await deleteOrg.mutateAsync(organizationId);
+                  setDeleteOpen(false);
+                  router.replace("/organizations");
+                }}
+              >
+                {deleteOrg.isPending ? "Deleting…" : "Delete permanently"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={statusOpen} onOpenChange={setStatusOpen}>
         <DialogContent>
@@ -654,6 +954,27 @@ export function OrganizationProfile({
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function ComingSoonPlaceholder({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-6 py-14 text-center">
+      <div className="mb-3 text-muted-foreground/40">{icon}</div>
+      <p className="font-medium text-foreground">{title}</p>
+      <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">{description}</p>
+      <span className="mt-4 inline-flex items-center rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">
+        Coming in next milestone
+      </span>
     </div>
   );
 }
@@ -793,6 +1114,9 @@ function BaseSheet({
     address_line1?: string;
     is_primary?: boolean;
     location_kind?: "HQ" | "OPS_BASE" | "DEPOT" | "OTHER";
+    lat?: number | null;
+    lng?: number | null;
+    google_place_id?: string | null;
   }) => Promise<void>;
 }) {
   const [label, setLabel] = useState(initial?.label ?? "");
@@ -805,6 +1129,11 @@ function BaseSheet({
   const [kind, setKind] = useState<"HQ" | "OPS_BASE" | "DEPOT" | "OTHER">(
     initial?.locationKind ?? "OPS_BASE",
   );
+  const [lat, setLat] = useState<number | null>(initial?.lat ?? null);
+  const [lng, setLng] = useState<number | null>(initial?.lng ?? null);
+  const [googlePlaceId, setGooglePlaceId] = useState<string | null>(
+    initial?.googlePlaceId ?? null,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -814,15 +1143,19 @@ function BaseSheet({
     setAddress(initial?.addressLine1 ?? "");
     setIsPrimary(initial?.isPrimary ?? true);
     setKind(initial?.locationKind ?? "OPS_BASE");
+    setLat(initial?.lat ?? null);
+    setLng(initial?.lng ?? null);
+    setGooglePlaceId(initial?.googlePlaceId ?? null);
   }, [initial, open, defaultCountry]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>{initial ? "Edit base" : "Add base"}</SheetTitle>
           <SheetDescription>
-            Bases are operational locations, separate from coverage.
+            Operational HQ / depot. Separate from coverage. Add as many as you
+            need; mark one primary for the map pin.
           </SheetDescription>
         </SheetHeader>
         <form
@@ -836,9 +1169,33 @@ function BaseSheet({
               address_line1: address || undefined,
               is_primary: isPrimary,
               location_kind: kind,
+              lat,
+              lng,
+              google_place_id: googlePlaceId,
             });
           }}
         >
+          <div className="space-y-2">
+            <Label>Find place</Label>
+            <LocationSearchPicker
+              placeholder="Search London, Milan depot…"
+              onPick={(location) => {
+                const isCountry = location.kind === "COUNTRY";
+                // Mereu resetăm la selecție nouă — nu păstrăm valorile anterioare
+                setCity(isCountry ? "" : location.name);
+                setLabel(`${location.name} base`);
+                if (location.countryCode) setCountry(location.countryCode);
+                setLat(location.lat);
+                setLng(location.lng);
+                setGooglePlaceId(location.googlePlaceId);
+              }}
+            />
+            {lat != null && lng != null ? (
+              <p className="text-xs text-muted-foreground">
+                Coordinates saved for map pin: {lat.toFixed(4)}, {lng.toFixed(4)}
+              </p>
+            ) : null}
+          </div>
           <div className="space-y-2">
             <Label>Label</Label>
             <Input value={label} onChange={(e) => setLabel(e.target.value)} required />
@@ -878,7 +1235,7 @@ function BaseSheet({
               checked={isPrimary}
               onCheckedChange={(checked) => setIsPrimary(Boolean(checked))}
             />
-            <Label>Primary base</Label>
+            <Label>Primary base (map pin)</Label>
           </div>
           <Button type="submit" disabled={pending || !label.trim()}>
             {pending ? "Saving…" : "Save base"}

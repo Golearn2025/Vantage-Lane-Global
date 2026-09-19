@@ -17,11 +17,13 @@ export default function UnauthorizedPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            This application shell is for Vantage Lane platform staff. Your
-            account is authenticated, but does not have platform CRM access.
-            Database RLS remains the authority.
+            This CRM shell is for Vantage Lane platform staff. Partner accounts
+            use the partner workspace instead.
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <Link href="/partner">Open partner workspace</Link>
+            </Button>
             <Button
               variant="outline"
               onClick={async () => {

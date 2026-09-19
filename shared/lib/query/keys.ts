@@ -14,6 +14,14 @@ export const organizationsKeys = {
     [...organizationsKeys.all, "locations-catalog", q] as const,
 };
 
+export const networkKeys = {
+  all: ["network"] as const,
+  locations: (q: string) => [...networkKeys.all, "locations", q] as const,
+  place: (locationId: string) =>
+    [...networkKeys.all, "place", locationId] as const,
+  organizations: () => [...networkKeys.all, "organizations"] as const,
+};
+
 export const identityKeys = {
   all: ["identity"] as const,
   me: () => [...identityKeys.all, "me"] as const,

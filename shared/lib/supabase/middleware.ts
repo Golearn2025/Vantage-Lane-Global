@@ -1,6 +1,14 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const PUBLIC_PREFIXES = ["/login", "/join", "/auth/callback", "/unauthorized"];
+
+function isPublicPath(pathname: string) {
+  return PUBLIC_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -30,8 +38,6 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const isAuthRoute = pathname.startsWith("/login");
-  const isUnauthorizedRoute = pathname.startsWith("/unauthorized");
   const isPublicAsset =
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
@@ -41,22 +47,29 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  if (!user && !isAuthRoute) {
+  if (!user && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthRoute) {
+  if (user && pathname === "/login") {
+    const { data: isPlatform } = await supabase.rpc("is_platform_user");
     const url = request.nextUrl.clone();
-    url.pathname = "/organizations";
-    return NextResponse.redirect(url);
-  }
-
-  if (!user && isUnauthorizedRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    if (isPlatform) {
+      url.pathname = "/organizations";
+    } else {
+      const { data: membership } = await supabase
+        .from("organization_memberships")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("status", "ACTIVE")
+        .is("archived_at", null)
+        .limit(1)
+        .maybeSingle();
+      url.pathname = membership ? "/partner" : "/join/setup";
+    }
     return NextResponse.redirect(url);
   }
 

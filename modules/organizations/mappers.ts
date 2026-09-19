@@ -118,6 +118,7 @@ export function toQuickAddPayload(input: QuickAddOperatorInput) {
   return {
     display_name: input.display_name,
     legal_country_code: input.legal_country_code,
+    service_code: input.service_code || "GROUND_TRANSPORTATION",
     legal_name: input.legal_name || null,
     website_url: input.website_url || null,
     primary_whatsapp_e164: input.primary_whatsapp_e164 || null,
@@ -125,10 +126,15 @@ export function toQuickAddPayload(input: QuickAddOperatorInput) {
     primary_phone_e164: input.primary_phone_e164 || null,
     base_label: input.base_label || null,
     base_city: input.base_city || null,
+    base_lat: input.base_lat ?? null,
+    base_lng: input.base_lng ?? null,
     google_place_id: input.google_place_id || null,
     lead_source: input.lead_source || null,
     internal_note: input.internal_note || null,
     coverage_location_id: input.coverage_location_id || null,
+    coverage_radius_km: input.coverage_radius_km ?? null,
+    secondary_coverage_location_ids:
+      input.secondary_coverage_location_ids ?? [],
     is_test: input.is_test ?? false,
   };
 }
@@ -163,6 +169,8 @@ export function mapBase(
     addressLine1: row.address_line1,
     isPrimary: row.is_primary,
     googlePlaceId: row.google_place_id,
+    lat: row.lat,
+    lng: row.lng,
   };
 }
 
@@ -184,6 +192,8 @@ export function mapCoverage(
     locationName: row.locations?.name ?? null,
     iata: row.locations?.iata ?? null,
     countryCode: row.locations?.country_code ?? null,
+    radiusValue: row.radius_value != null ? Number(row.radius_value) : null,
+    radiusUnit: row.radius_unit,
     isInformationalOnly: row.is_informational_only,
   };
 }
@@ -209,5 +219,8 @@ export function mapLocationCatalog(
     kind: row.kind,
     iata: row.iata,
     countryCode: row.country_code,
+    lat: row.lat,
+    lng: row.lng,
+    googlePlaceId: row.google_place_id,
   };
 }

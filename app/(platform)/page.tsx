@@ -11,7 +11,7 @@ export default function OverviewPage() {
           Internal ops home for the Ground Transportation network CRM.
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle>Organizations</CardTitle>
@@ -27,13 +27,26 @@ export default function OverviewPage() {
         </Card>
         <Card>
           <CardHeader>
+            <CardTitle>Network</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Find who covers an airport or place, by relationship bucket.
+            </p>
+            <Button asChild variant="secondary">
+              <Link href="/network">Open network</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
             <CardTitle>Quick Add</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
               Create a new operator Lead in one transactional step.
             </p>
-            <Button asChild variant="secondary">
+            <Button asChild variant="outline">
               <Link href="/organizations/new">Add Operator</Link>
             </Button>
           </CardContent>

@@ -71,6 +71,7 @@ export type OrganizationOverview = {
 export type QuickAddOperatorInput = {
   display_name: string;
   legal_country_code: string;
+  service_code?: string;
   legal_name?: string;
   website_url?: string;
   primary_whatsapp_e164?: string;
@@ -78,10 +79,14 @@ export type QuickAddOperatorInput = {
   primary_phone_e164?: string;
   base_label?: string;
   base_city?: string;
+  base_lat?: number | null;
+  base_lng?: number | null;
   google_place_id?: string;
   lead_source?: string;
   internal_note?: string;
   coverage_location_id?: string;
+  coverage_radius_km?: number | null;
+  secondary_coverage_location_ids?: string[];
   is_test?: boolean;
 };
 
@@ -127,6 +132,8 @@ export type OrganizationBase = {
   addressLine1: string | null;
   isPrimary: boolean;
   googlePlaceId: string | null;
+  lat: number | null;
+  lng: number | null;
 };
 
 export type OrganizationCoverage = {
@@ -138,6 +145,8 @@ export type OrganizationCoverage = {
   locationName: string | null;
   iata: string | null;
   countryCode: string | null;
+  radiusValue: number | null;
+  radiusUnit: Database["public"]["Enums"]["distance_unit"] | null;
   isInformationalOnly: boolean;
 };
 
@@ -155,4 +164,7 @@ export type LocationCatalogItem = {
   kind: Database["public"]["Enums"]["location_kind"];
   iata: string | null;
   countryCode: string | null;
+  lat: number | null;
+  lng: number | null;
+  googlePlaceId: string | null;
 };

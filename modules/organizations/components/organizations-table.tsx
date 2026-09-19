@@ -9,12 +9,14 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   type ColumnDef,
+  type Row,
   type SortingState,
   useReactTable,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { Plus, Search } from "lucide-react";
+import { ArrowUpRight, Plus, Search, Trash2 } from "lucide-react";
 import { useOrganizationSummaries } from "@/modules/organizations/hooks";
+import { useOrganizationsListRealtime } from "@/modules/organizations/realtime";
 import type { OrganizationSummary } from "@/modules/organizations/types";
 import {
   OperationalStatusBadge,
@@ -80,16 +82,51 @@ export function OrganizationsTable() {
   const { filters, setParam } = useUrlFilters();
   const { data, isLoading, isError, error, refetch, isFetching } =
     useOrganizationSummaries(filters);
-  const [sorting, setSorting] = useState<SortingState>([]);
+  useOrganizationsListRealtime();
+  const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     serviceName: false,
     lastActivityAt: false,
     createdAt: false,
     isTest: false,
   });
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
 
   const columns = useMemo<ColumnDef<OrganizationSummary>[]>(
     () => [
+      {
+        id: "select",
+        enableHiding: false,
+        enableSorting: false,
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected()}
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(Boolean(value))}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(Boolean(value))}
+            aria-label="Select row"
+            onClick={(e) => e.stopPropagation()}
+          />
+        ),
+      },
+      {
+        id: "rowIndex",
+        enableHiding: false,
+        enableSorting: false,
+        header: "#",
+        cell: ({ row, table }) => {
+          const allRows = table.getRowModel().rows;
+          const idx = allRows.findIndex((r: Row<OrganizationSummary>) => r.id === row.id);
+          return (
+            <span className="tabular-nums text-muted-foreground">{idx + 1}</span>
+          );
+        },
+      },
       {
         accessorKey: "displayName",
         header: "Company",
@@ -174,6 +211,21 @@ export function OrganizationsTable() {
         header: "Test/Real",
         cell: ({ getValue }) => (getValue<boolean>() ? "TEST" : "Real"),
       },
+      {
+        id: "actions",
+        header: "",
+        enableHiding: false,
+        cell: ({ row }) => (
+          <Link
+            href={`/organizations/${row.original.organizationId}`}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+          >
+            Open
+            <ArrowUpRight className="h-3 w-3" />
+          </Link>
+        ),
+      },
     ],
     [],
   );
@@ -181,14 +233,18 @@ export function OrganizationsTable() {
   const table = useReactTable({
     data: data ?? [],
     columns,
-    state: { sorting, columnVisibility },
+    state: { sorting, columnVisibility, rowSelection },
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: true,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 20 } },
   });
+
+  const selectedCount = Object.values(rowSelection).filter(Boolean).length;
 
   const countries = useMemo(() => {
     const set = new Set(
@@ -295,6 +351,41 @@ export function OrganizationsTable() {
           </SelectContent>
         </Select>
       </div>
+
+      {/* Bulk action bar */}
+      {selectedCount > 0 ? (
+        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+          <span className="text-sm font-medium">
+            {selectedCount} selected
+          </span>
+          <div className="ml-auto flex gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setRowSelection({})}
+            >
+              Clear
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-danger hover:border-danger/40 hover:bg-danger/5 hover:text-danger"
+              onClick={() => {
+                const names = table
+                  .getSelectedRowModel()
+                  .rows.map((r) => r.original.displayName)
+                  .join(", ");
+                alert(
+                  `Bulk delete not yet implemented.\nSelected: ${names}\n\nOpen each profile to delete individually.`,
+                );
+              }}
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+              Delete selected
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
@@ -405,37 +496,43 @@ export function OrganizationsTable() {
             </table>
           </div>
 
-          <div className="space-y-3 md:hidden">
+          <div className="space-y-2 md:hidden">
             {table.getRowModel().rows.map((row) => (
-              <Link
+              <div
                 key={row.id}
-                href={`/organizations/${row.original.organizationId}`}
-                className="block rounded-lg border border-border bg-card p-4"
+                className="overflow-hidden rounded-xl border border-border bg-card"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
+                <div className="flex items-start justify-between gap-3 p-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium">{row.original.displayName}</p>
                       {row.original.isTest ? <TestBadge /> : null}
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {row.original.legalCountryCode ?? "—"} ·{" "}
-                      {row.original.primaryBaseCity ?? "No base"}
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {row.original.legalCountryCode ?? "—"}
+                      {row.original.primaryBaseCity
+                        ? ` · ${row.original.primaryBaseCity}`
+                        : ""}
                     </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <RelationshipStatusBadge status={row.original.relationshipStatus} />
+                      <OperationalStatusBadge status={row.original.operationalStatus} />
+                      {row.original.coverageCount > 0 ? (
+                        <span className="inline-flex items-center rounded-full border border-border px-2 py-px text-[10px] text-muted-foreground">
+                          {row.original.coverageCount} coverage
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  <RelationshipStatusBadge
-                    status={row.original.relationshipStatus}
-                  />
+                  <Link
+                    href={`/organizations/${row.original.organizationId}`}
+                    className="mt-0.5 flex shrink-0 items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+                  >
+                    Open
+                    <ArrowUpRight className="h-3 w-3" />
+                  </Link>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <OperationalStatusBadge
-                    status={row.original.operationalStatus}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    Coverage {row.original.coverageCount}
-                  </span>
-                </div>
-              </Link>
+              </div>
             ))}
           </div>
 

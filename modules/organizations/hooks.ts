@@ -18,6 +18,7 @@ import type { QuickAddOperatorInput } from "@/modules/organizations/types";
 import type { RelationshipStatus } from "@/shared/types/domain";
 import { createClient } from "@/shared/lib/supabase/client";
 import { toast } from "sonner";
+import type { Database } from "@/shared/types/database";
 
 export function useOrganizationSummaries(filters: OrganizationListFilters) {
   return useQuery({
@@ -201,6 +202,9 @@ export function useUpsertBase(organizationId: string) {
       address_line1?: string | null;
       is_primary?: boolean;
       location_kind?: "HQ" | "OPS_BASE" | "DEPOT" | "OTHER";
+      lat?: number | null;
+      lng?: number | null;
+      google_place_id?: string | null;
     }) => {
       const supabase = createClient();
       if (payload.is_primary) {
@@ -210,28 +214,27 @@ export function useUpsertBase(organizationId: string) {
           .eq("organization_id", organizationId)
           .is("archived_at", null);
       }
+      const row = {
+        label: payload.label,
+        city: payload.city ?? null,
+        country_code: payload.country_code ?? null,
+        address_line1: payload.address_line1 ?? null,
+        is_primary: payload.is_primary ?? false,
+        location_kind: payload.location_kind ?? "OPS_BASE",
+        lat: payload.lat ?? null,
+        lng: payload.lng ?? null,
+        google_place_id: payload.google_place_id ?? null,
+      };
       if (payload.id) {
         const { error } = await supabase
           .from("organization_locations")
-          .update({
-            label: payload.label,
-            city: payload.city ?? null,
-            country_code: payload.country_code ?? null,
-            address_line1: payload.address_line1 ?? null,
-            is_primary: payload.is_primary ?? false,
-            location_kind: payload.location_kind ?? "OPS_BASE",
-          })
+          .update(row)
           .eq("id", payload.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("organization_locations").insert({
           organization_id: organizationId,
-          label: payload.label,
-          city: payload.city ?? null,
-          country_code: payload.country_code ?? null,
-          address_line1: payload.address_line1 ?? null,
-          is_primary: payload.is_primary ?? false,
-          location_kind: payload.location_kind ?? "OPS_BASE",
+          ...row,
         });
         if (error) throw error;
       }
@@ -252,25 +255,51 @@ export function useUpsertBase(organizationId: string) {
   });
 }
 
+export function useArchiveBase(organizationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (baseId: string) => {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("organization_locations")
+        .update({ archived_at: new Date().toISOString(), is_primary: false })
+        .eq("id", baseId);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: organizationsKeys.bases(organizationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: organizationsKeys.detail(organizationId),
+        }),
+        queryClient.invalidateQueries({ queryKey: organizationsKeys.lists() }),
+      ]);
+      toast.success("Base archived");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
 export function useAddCoverage(organizationId: string, offeringId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (locationId: string) => {
+    mutationFn: async (payload: {
+      locationId: string;
+      coverageMode: Database["public"]["Enums"]["coverage_mode"];
+      radiusKm?: number | null;
+    }) => {
       if (!offeringId) throw new Error("No offering available for coverage");
       const supabase = createClient();
-      const { data: location, error: locError } = await supabase
-        .from("locations")
-        .select("kind")
-        .eq("id", locationId)
-        .single();
-      if (locError) throw locError;
-
+      const radiusKm = payload.radiusKm ?? null;
       const { error } = await supabase.from("offering_coverages").insert({
         organization_id: organizationId,
         offering_id: offeringId,
-        location_id: locationId,
-        coverage_mode:
-          location.kind === "AIRPORT" ? "AIRPORT_EXPLICIT" : "CITY_OR_REGION",
+        location_id: payload.locationId,
+        coverage_mode: payload.coverageMode,
+        radius_value: radiusKm,
+        radius_unit: radiusKm != null ? "KM" : null,
         is_informational_only: false,
       });
       if (error) throw error;
@@ -314,6 +343,42 @@ export function useArchiveCoverage(organizationId: string) {
       toast.success("Coverage archived");
     },
     onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useDeleteOrganization() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (organizationId: string) => {
+      const supabase = createClient();
+      // Delete child records first (cascade may not cover all tables in RLS context)
+      await supabase.from("offering_coverages").delete().eq("organization_id", organizationId);
+      await supabase.from("organization_locations").delete().eq("organization_id", organizationId);
+      await supabase.from("organization_contacts").delete().eq("organization_id", organizationId);
+      await supabase.from("activities").delete().eq("organization_id", organizationId);
+      await supabase.from("communications").delete().eq("organization_id", organizationId);
+      // Delete offerings then org
+      const { data: offerings } = await supabase
+        .from("offerings")
+        .select("id")
+        .eq("organization_id", organizationId);
+      if (offerings?.length) {
+        for (const offering of offerings) {
+          await supabase.from("offering_coverages").delete().eq("offering_id", offering.id);
+        }
+        await supabase.from("offerings").delete().eq("organization_id", organizationId);
+      }
+      const { error } = await supabase
+        .from("organizations")
+        .delete()
+        .eq("id", organizationId);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: organizationsKeys.all });
+      toast.success("Organization deleted permanently");
+    },
+    onError: (error: Error) => toast.error(error.message || "Could not delete organization"),
   });
 }
 

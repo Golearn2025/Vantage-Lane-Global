@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,16 +9,11 @@ import { z } from "zod";
 import { loginSchema } from "@/modules/organizations/schemas";
 import { signInWithPassword } from "@/modules/identity/session";
 import { createClient } from "@/shared/lib/supabase/client";
+import Image from "next/image";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/shared/ui/card";
+import { PasswordInput } from "@/shared/components/password-input";
 
 type FormValues = z.infer<typeof loginSchema>;
 
@@ -41,7 +37,20 @@ export default function LoginClient() {
       if (isPlatform) {
         router.replace(next && next !== "/login" ? next : "/organizations");
       } else {
-        router.replace("/unauthorized");
+        const { data: membership } = await supabase
+          .from("organization_memberships")
+          .select("id")
+          .eq("status", "ACTIVE")
+          .is("archived_at", null)
+          .limit(1)
+          .maybeSingle();
+        router.replace(
+          next && next.startsWith("/partner")
+            ? next
+            : membership
+              ? "/partner"
+              : "/join/setup",
+        );
       }
       router.refresh();
     } catch (err) {
@@ -50,47 +59,72 @@ export default function LoginClient() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center px-4">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)/0.18),_transparent_50%),linear-gradient(180deg,_hsl(var(--background)),_hsl(var(--muted)))]" />
-      <Card className="w-full max-w-md border-border/80 shadow-lg">
-        <CardHeader>
-          <p className="font-display text-2xl tracking-tight">Vantage Lane</p>
-          <CardTitle className="text-xl">Sign in</CardTitle>
-          <CardDescription>
-            Internal Network CRM for platform staff.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="relative flex min-h-dvh flex-col items-center justify-center px-4 py-10">
+      {/* Background */}
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_20%_0%,_hsl(36_42%_58%_/_0.13),_transparent_60%),radial-gradient(ellipse_at_80%_100%,_hsl(36_42%_58%_/_0.08),_transparent_60%),hsl(var(--background))]" />
+
+      <div className="w-full max-w-md">
+        {/* Logo + brand */}
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <Image src="/logo.png" alt="Vantage Lane" width={56} height={56} />
+          <div className="text-center">
+            <p className="font-display text-2xl tracking-widest text-foreground">
+              VANTAGE LANE
+            </p>
+            <p className="mt-0.5 text-xs tracking-wider text-muted-foreground uppercase">
+              Global Network
+            </p>
+          </div>
+        </div>
+
+        {/* Form */}
+        <div className="rounded-2xl border border-border/60 bg-card/80 p-6 shadow-xl backdrop-blur">
+          <h1 className="mb-1 text-xl font-semibold">Sign in</h1>
+          <p className="mb-5 text-sm text-muted-foreground">
+            Platform staff or partner account.{" "}
+            <Link
+              href="/join"
+              className="font-medium text-foreground underline underline-offset-2"
+            >
+              New partner? Join here
+            </Link>
+          </p>
+
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
                 autoComplete="email"
+                placeholder="you@company.com"
                 {...form.register("email")}
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 autoComplete="current-password"
                 {...form.register("password")}
               />
             </div>
-            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            {error ? (
+              <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+                {error}
+              </p>
+            ) : null}
             <Button
-              className="w-full"
+              className="w-full rounded-full"
+              size="lg"
               type="submit"
               disabled={form.formState.isSubmitting}
             >
-              {form.formState.isSubmitting ? "Signing in…" : "Sign in"}
+              {form.formState.isSubmitting ? "Signing in…" : "Sign in →"}
             </Button>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
