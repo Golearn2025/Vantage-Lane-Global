@@ -99,10 +99,20 @@ function matchesStatusFilter(status: InviteStatus, filter: string) {
 function canSelectForSend(row: InviteLead, statusFilter: string) {
   if (!row.inviteEmail) return false;
   const st = deriveInviteStatus(row);
+  // Allow resend when browsing already-invited (or failed)
+  if (
+    statusFilter === "sent_family" ||
+    statusFilter === "sent" ||
+    statusFilter === "delivered" ||
+    statusFilter === "opened" ||
+    statusFilter === "clicked" ||
+    statusFilter === "all"
+  ) {
+    return st !== "signed_up";
+  }
+  if (statusFilter === "failed") return st === "failed" || st === "bounced";
   if (statusFilter === "not_sent") return st === "not_sent";
-  if (st === "failed" || st === "bounced") return true;
-  if (ALREADY_INVITED.includes(st)) return false;
-  return st === "not_sent";
+  return st === "not_sent" || st === "failed" || st === "bounced";
 }
 
 export function InvitesWorkspace() {
@@ -275,12 +285,20 @@ export function InvitesWorkspace() {
       toast.error("Select at least one lead ready to invite");
       return;
     }
+    const resending =
+      statusFilter === "sent_family" ||
+      statusFilter === "sent" ||
+      statusFilter === "delivered" ||
+      statusFilter === "opened" ||
+      statusFilter === "clicked" ||
+      statusFilter === "all";
     try {
       const res = await sendInvites.mutateAsync({
         organizationIds: selectedIds,
         serviceCode:
           serviceCode === "all" ? "GROUND_TRANSPORTATION" : serviceCode,
-        skipAlreadyInvited: true,
+        // When viewing already-invited, force a new email
+        skipAlreadyInvited: !resending,
       });
       const skipped = res.skipped ?? 0;
       toast.success(
@@ -301,7 +319,9 @@ export function InvitesWorkspace() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Invites</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Paginated list ({PAGE_SIZE}/page). Default filter = not sent yet.
+            Paginated ({PAGE_SIZE}/page). To resend: filter{" "}
+            <span className="text-foreground">Already invited</span>, select,
+            Send again.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
