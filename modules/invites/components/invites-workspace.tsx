@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+  type ColumnDef,
+  type RowSelectionState,
+} from "@tanstack/react-table";
 import { Mail, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useInviteLeads, useSendNetworkInvites } from "@/modules/invites/hooks";
@@ -23,6 +31,8 @@ import {
 } from "@/shared/ui/select";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
+
+const PAGE_SIZE = 25;
 
 const SERVICE_FILTERS = [
   { value: "all", label: "All services" },
@@ -86,12 +96,25 @@ function matchesStatusFilter(status: InviteStatus, filter: string) {
   return status === filter;
 }
 
+function canSelectForSend(row: InviteLead, statusFilter: string) {
+  if (!row.inviteEmail) return false;
+  const st = deriveInviteStatus(row);
+  if (statusFilter === "not_sent") return st === "not_sent";
+  if (st === "failed" || st === "bounced") return true;
+  if (ALREADY_INVITED.includes(st)) return false;
+  return st === "not_sent";
+}
+
 export function InvitesWorkspace() {
   const [serviceCode, setServiceCode] = useState("all");
   const [statusFilter, setStatusFilter] = useState("not_sent");
   const [q, setQ] = useState("");
   const [onlyWithEmail, setOnlyWithEmail] = useState(true);
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: PAGE_SIZE,
+  });
 
   const { data, isLoading, isError, error, refetch, isFetching } = useInviteLeads({
     serviceCode,
@@ -107,31 +130,145 @@ export function InvitesWorkspace() {
     );
   }, [data, statusFilter]);
 
-  const selectedIds = useMemo(
-    () => Object.entries(selected).filter(([, v]) => v).map(([id]) => id),
-    [selected],
+  useEffect(() => {
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+    setRowSelection({});
+  }, [serviceCode, statusFilter, q, onlyWithEmail]);
+
+  const columns = useMemo<ColumnDef<InviteLead>[]>(
+    () => [
+      {
+        id: "select",
+        enableSorting: false,
+        header: ({ table }) => {
+          const pageRows = table.getRowModel().rows.filter((r) =>
+            canSelectForSend(r.original, statusFilter),
+          );
+          const allSelected =
+            pageRows.length > 0 && pageRows.every((r) => r.getIsSelected());
+          return (
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={(value) => {
+                const checked = Boolean(value);
+                for (const row of pageRows) row.toggleSelected(checked);
+              }}
+              aria-label="Select page"
+            />
+          );
+        },
+        cell: ({ row }) => (
+          <Checkbox
+            disabled={!canSelectForSend(row.original, statusFilter)}
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(Boolean(value))}
+            aria-label="Select row"
+            onClick={(e) => e.stopPropagation()}
+          />
+        ),
+      },
+      {
+        accessorKey: "displayName",
+        header: "Company",
+        cell: ({ row }) => (
+          <div>
+            <Link
+              href={`/organizations/${row.original.organizationId}`}
+              className="font-medium hover:underline"
+            >
+              {row.original.displayName}
+            </Link>
+            <p className="text-xs text-muted-foreground">
+              {row.original.city || "—"}
+              {row.original.countryCode ? `, ${row.original.countryCode}` : ""}
+            </p>
+          </div>
+        ),
+      },
+      {
+        id: "service",
+        header: "Service",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {serviceLabel(row.original.serviceCode)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "inviteEmail",
+        header: "Email",
+        cell: ({ row }) =>
+          row.original.inviteEmail || (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => {
+          const status = deriveInviteStatus(row.original);
+          return (
+            <div>
+              <span
+                className={cn(
+                  "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
+                  STATUS_STYLES[status],
+                )}
+              >
+                {STATUS_LABEL[status]}
+              </span>
+              {row.original.convertedOrganizationId ? (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  →{" "}
+                  <Link
+                    className="underline"
+                    href={`/organizations/${row.original.convertedOrganizationId}`}
+                  >
+                    new org
+                  </Link>
+                </p>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`/organizations/${row.original.organizationId}`}>
+                Open
+              </Link>
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [statusFilter],
   );
 
-  /** Only email + not already invited (unless viewing already-invited filter) */
-  const selectable = rows.filter((r) => {
-    if (!r.inviteEmail) return false;
-    const st = deriveInviteStatus(r);
-    if (statusFilter === "not_sent") return st === "not_sent";
-    if (ALREADY_INVITED.includes(st) && statusFilter !== "failed") {
-      return statusFilter === "sent_family" || statusFilter === st;
-    }
-    return st === "not_sent" || st === "failed" || st === "bounced";
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { rowSelection, pagination },
+    onRowSelectionChange: setRowSelection,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getRowId: (row) => row.organizationId,
+    enableRowSelection: (row) => canSelectForSend(row.original, statusFilter),
   });
 
-  function toggleAll(checked: boolean) {
-    if (!checked) {
-      setSelected({});
-      return;
-    }
-    const next: Record<string, boolean> = {};
-    for (const r of selectable) next[r.organizationId] = true;
-    setSelected(next);
-  }
+  const selectedIds = useMemo(
+    () =>
+      table
+        .getSelectedRowModel()
+        .rows.map((r) => r.original.organizationId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selection + data drive this
+    [rowSelection, rows],
+  );
 
   async function handleSend() {
     if (selectedIds.length === 0) {
@@ -145,16 +282,18 @@ export function InvitesWorkspace() {
           serviceCode === "all" ? "GROUND_TRANSPORTATION" : serviceCode,
         skipAlreadyInvited: true,
       });
-      const skipped = (res as { skipped?: number }).skipped ?? 0;
+      const skipped = res.skipped ?? 0;
       toast.success(
         `Sent ${res.sent} · failed ${res.failed}${skipped ? ` · skipped ${skipped}` : ""}`,
       );
-      setSelected({});
+      setRowSelection({});
       void refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Send failed");
     }
   }
+
+  const pageRows = table.getRowModel().rows;
 
   return (
     <div className="space-y-5">
@@ -162,8 +301,7 @@ export function InvitesWorkspace() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Invites</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Default view = not sent yet. Opened/clicked need the Resend webhook
-            configured. Signed up appears after they finish /join.
+            Paginated list ({PAGE_SIZE}/page). Default filter = not sent yet.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -173,7 +311,9 @@ export function InvitesWorkspace() {
             onClick={() => void refetch()}
             disabled={isFetching}
           >
-            <RefreshCw className={cn("mr-1.5 size-3.5", isFetching && "animate-spin")} />
+            <RefreshCw
+              className={cn("mr-1.5 size-3.5", isFetching && "animate-spin")}
+            />
             Refresh
           </Button>
           <Button
@@ -194,19 +334,10 @@ export function InvitesWorkspace() {
         <Input
           placeholder="Search company or email…"
           value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setSelected({});
-          }}
+          onChange={(e) => setQ(e.target.value)}
           className="lg:max-w-xs"
         />
-        <Select
-          value={serviceCode}
-          onValueChange={(v) => {
-            setServiceCode(v);
-            setSelected({});
-          }}
-        >
+        <Select value={serviceCode} onValueChange={setServiceCode}>
           <SelectTrigger className="lg:w-52">
             <SelectValue placeholder="Service" />
           </SelectTrigger>
@@ -218,13 +349,7 @@ export function InvitesWorkspace() {
             ))}
           </SelectContent>
         </Select>
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => {
-            setStatusFilter(v);
-            setSelected({});
-          }}
-        >
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="lg:w-56">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -239,24 +364,21 @@ export function InvitesWorkspace() {
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           <Checkbox
             checked={onlyWithEmail}
-            onCheckedChange={(v) => {
-              setOnlyWithEmail(Boolean(v));
-              setSelected({});
-            }}
+            onCheckedChange={(v) => setOnlyWithEmail(Boolean(v))}
           />
           Only with email
         </label>
         <p className="text-xs text-muted-foreground lg:ml-auto">
-          Showing {rows.length}
-          {data ? ` of ${data.length}` : ""}
+          {rows.length} match
+          {data ? ` · ${data.length} total` : ""}
         </p>
       </div>
 
       {isLoading ? (
         <div className="space-y-2">
-          <Skeleton className="h-16 w-full rounded-xl" />
-          <Skeleton className="h-16 w-full rounded-xl" />
-          <Skeleton className="h-16 w-full rounded-xl" />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-14 w-full rounded-xl" />
+          ))}
         </div>
       ) : isError ? (
         <p className="text-sm text-danger">
@@ -267,7 +389,7 @@ export function InvitesWorkspace() {
           <Mail className="mx-auto mb-3 size-8 text-muted-foreground" />
           <p className="font-medium">No matching leads</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Change the status filter (e.g. All / Already invited) or search.
+            Change status filter or search.
           </p>
         </div>
       ) : (
@@ -275,91 +397,72 @@ export function InvitesWorkspace() {
           <div className="hidden overflow-hidden rounded-2xl border border-border/60 md:block">
             <table className="w-full text-sm">
               <thead className="border-b border-border/60 bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-3">
-                    <Checkbox
-                      checked={
-                        selectable.length > 0 &&
-                        selectedIds.length === selectable.length
-                      }
-                      onCheckedChange={(v) => toggleAll(Boolean(v))}
-                      aria-label="Select all"
-                    />
-                  </th>
-                  <th className="px-3 py-3">Company</th>
-                  <th className="px-3 py-3">Service</th>
-                  <th className="px-3 py-3">Email</th>
-                  <th className="px-3 py-3">Status</th>
-                  <th className="px-3 py-3" />
-                </tr>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <th key={header.id} className="px-3 py-3 font-medium">
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <InviteTableRow
-                    key={row.organizationId}
-                    row={row}
-                    checked={Boolean(selected[row.organizationId])}
-                    canSelect={selectable.some(
-                      (s) => s.organizationId === row.organizationId,
-                    )}
-                    onCheckedChange={(v) =>
-                      setSelected((prev) => ({
-                        ...prev,
-                        [row.organizationId]: v,
-                      }))
-                    }
-                  />
+                {pageRows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="border-b border-border/40 last:border-0 hover:bg-muted/20"
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="px-3 py-3 align-middle">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
           <div className="space-y-3 md:hidden">
-            <label className="flex items-center gap-2 px-1 text-sm">
-              <Checkbox
-                checked={
-                  selectable.length > 0 &&
-                  selectedIds.length === selectable.length
-                }
-                onCheckedChange={(v) => toggleAll(Boolean(v))}
-              />
-              Select all ready to send
-            </label>
-            {rows.map((row) => {
-              const status = deriveInviteStatus(row);
-              const canSelect = selectable.some(
-                (s) => s.organizationId === row.organizationId,
-              );
+            {pageRows.map((row) => {
+              const status = deriveInviteStatus(row.original);
+              const canSelect = canSelectForSend(row.original, statusFilter);
               return (
                 <div
-                  key={row.organizationId}
+                  key={row.id}
                   className="rounded-2xl border border-border/60 bg-card/50 p-4"
                 >
                   <div className="flex items-start gap-3">
                     <Checkbox
                       className="mt-1"
                       disabled={!canSelect}
-                      checked={Boolean(selected[row.organizationId])}
+                      checked={row.getIsSelected()}
                       onCheckedChange={(v) =>
-                        setSelected((prev) => ({
-                          ...prev,
-                          [row.organizationId]: Boolean(v),
-                        }))
+                        row.toggleSelected(Boolean(v))
                       }
                     />
                     <div className="min-w-0 flex-1">
                       <Link
-                        href={`/organizations/${row.organizationId}`}
+                        href={`/organizations/${row.original.organizationId}`}
                         className="font-medium hover:underline"
                       >
-                        {row.displayName}
+                        {row.original.displayName}
                       </Link>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {serviceLabel(row.serviceCode)} · {row.city || "—"}{" "}
-                        {row.countryCode || ""}
+                        {serviceLabel(row.original.serviceCode)} ·{" "}
+                        {row.original.city || "—"} {row.original.countryCode || ""}
                       </p>
                       <p className="mt-2 truncate text-sm">
-                        {row.inviteEmail || (
+                        {row.original.inviteEmail || (
                           <span className="text-muted-foreground">No email</span>
                         )}
                       </p>
@@ -377,77 +480,35 @@ export function InvitesWorkspace() {
               );
             })}
           </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              Previous
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Page {table.getState().pagination.pageIndex + 1} of{" "}
+              {Math.max(table.getPageCount(), 1)}
+              <span className="hidden sm:inline">
+                {" "}
+                · {PAGE_SIZE} per page
+              </span>
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              Next
+            </Button>
+          </div>
         </>
       )}
     </div>
-  );
-}
-
-function InviteTableRow({
-  row,
-  checked,
-  canSelect,
-  onCheckedChange,
-}: {
-  row: InviteLead;
-  checked: boolean;
-  canSelect: boolean;
-  onCheckedChange: (v: boolean) => void;
-}) {
-  const status = deriveInviteStatus(row);
-  return (
-    <tr className="border-b border-border/40 last:border-0 hover:bg-muted/20">
-      <td className="px-3 py-3">
-        <Checkbox
-          disabled={!canSelect}
-          checked={checked}
-          onCheckedChange={(v) => onCheckedChange(Boolean(v))}
-        />
-      </td>
-      <td className="px-3 py-3">
-        <Link
-          href={`/organizations/${row.organizationId}`}
-          className="font-medium hover:underline"
-        >
-          {row.displayName}
-        </Link>
-        <p className="text-xs text-muted-foreground">
-          {row.city || "—"}
-          {row.countryCode ? `, ${row.countryCode}` : ""}
-        </p>
-      </td>
-      <td className="px-3 py-3 text-muted-foreground">
-        {serviceLabel(row.serviceCode)}
-      </td>
-      <td className="px-3 py-3">
-        {row.inviteEmail || <span className="text-muted-foreground">—</span>}
-      </td>
-      <td className="px-3 py-3">
-        <span
-          className={cn(
-            "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
-            STATUS_STYLES[status],
-          )}
-        >
-          {STATUS_LABEL[status]}
-        </span>
-        {row.convertedOrganizationId ? (
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            →{" "}
-            <Link
-              className="underline"
-              href={`/organizations/${row.convertedOrganizationId}`}
-            >
-              new org
-            </Link>
-          </p>
-        ) : null}
-      </td>
-      <td className="px-3 py-3 text-right">
-        <Button asChild variant="ghost" size="sm">
-          <Link href={`/organizations/${row.organizationId}`}>Open</Link>
-        </Button>
-      </td>
-    </tr>
   );
 }
