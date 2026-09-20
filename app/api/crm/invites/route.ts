@@ -12,6 +12,7 @@ type Body = {
   organizationIds?: string[];
   serviceCode?: string;
   skipAlreadyInvited?: boolean;
+  forceResend?: boolean;
 };
 
 type InviteLeadRow = {
@@ -105,7 +106,8 @@ export async function POST(request: Request) {
     new URL(request.url).origin;
 
   const db = looseDb(auth.supabase);
-  const skipAlready = body.skipAlreadyInvited !== false;
+  const skipAlready = body.skipAlreadyInvited === true;
+  const forceResend = body.forceResend === true;
   const { data: leadRows, error: viewErr } = await db
     .from<InviteLeadRow>("v_invite_leads")
     .select(
@@ -126,7 +128,7 @@ export async function POST(request: Request) {
   }> = [];
 
   for (const lead of (leadRows as InviteLeadRow[] | null) ?? []) {
-    if (skipAlready) {
+    if (skipAlready && !forceResend) {
       const status = (lead.last_email_status || "").toLowerCase();
       const already =
         Boolean(lead.invite_accepted_at) ||

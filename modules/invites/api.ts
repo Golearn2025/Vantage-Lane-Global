@@ -77,6 +77,7 @@ export async function sendNetworkInvites(opts: {
   organizationIds: string[];
   serviceCode?: string;
   skipAlreadyInvited?: boolean;
+  forceResend?: boolean;
 }) {
   const res = await fetch("/api/crm/invites", {
     method: "POST",
@@ -85,6 +86,7 @@ export async function sendNetworkInvites(opts: {
       organizationIds: opts.organizationIds,
       serviceCode: opts.serviceCode,
       skipAlreadyInvited: opts.skipAlreadyInvited,
+      forceResend: opts.forceResend,
     }),
   });
   const json = (await res.json()) as { error?: string };

@@ -297,8 +297,8 @@ export function InvitesWorkspace() {
         organizationIds: selectedIds,
         serviceCode:
           serviceCode === "all" ? "GROUND_TRANSPORTATION" : serviceCode,
-        // When viewing already-invited, force a new email
-        skipAlreadyInvited: !resending,
+        skipAlreadyInvited: statusFilter === "not_sent",
+        forceResend: resending,
       });
       const skipped = res.skipped ?? 0;
       toast.success(
