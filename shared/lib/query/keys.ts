@@ -33,3 +33,8 @@ export const identityKeys = {
   me: () => [...identityKeys.all, "me"] as const,
   platformAccess: () => [...identityKeys.all, "platform-access"] as const,
 };
+
+export const dashboardKeys = {
+  all: ["dashboard"] as const,
+  stats: () => [...dashboardKeys.all, "stats"] as const,
+};

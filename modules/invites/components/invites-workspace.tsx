@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   flexRender,
@@ -32,13 +33,15 @@ import {
 import { Skeleton } from "@/shared/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE_OPTIONS = ["25", "50", "100", "all"] as const;
+type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
 
 const SERVICE_FILTERS = [
   { value: "all", label: "All services" },
   { value: "GROUND_TRANSPORTATION", label: "Ground Transportation" },
   { value: "SECURITY", label: "Security" },
   { value: "AVIATION", label: "Aviation" },
+  { value: "PRIVATE_AVIATION", label: "Private Aviation" },
   { value: "HOSPITALITY", label: "Hospitality" },
   { value: "CONCIERGE", label: "Concierge" },
   { value: "YACHT", label: "Yacht" },
@@ -115,15 +118,25 @@ function canSelectForSend(row: InviteLead, statusFilter: string) {
   return st === "not_sent" || st === "failed" || st === "bounced";
 }
 
+function initialStatusFromParams(raw: string | null): string {
+  if (!raw) return "not_sent";
+  if (STATUS_FILTERS.some((s) => s.value === raw)) return raw;
+  return "not_sent";
+}
+
 export function InvitesWorkspace() {
+  const searchParams = useSearchParams();
   const [serviceCode, setServiceCode] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("not_sent");
+  const [statusFilter, setStatusFilter] = useState(() =>
+    initialStatusFromParams(searchParams.get("status")),
+  );
   const [q, setQ] = useState("");
   const [onlyWithEmail, setOnlyWithEmail] = useState(true);
+  const [pageSizeOption, setPageSizeOption] = useState<PageSizeOption>("25");
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [pagination, setPagination] = useState({
     pageIndex: 0,
-    pageSize: PAGE_SIZE,
+    pageSize: 25,
   });
 
   const { data, isLoading, isError, error, refetch, isFetching } = useInviteLeads({
@@ -140,10 +153,23 @@ export function InvitesWorkspace() {
     );
   }, [data, statusFilter]);
 
+  const resolvedPageSize =
+    pageSizeOption === "all" ? Math.max(rows.length, 1) : Number(pageSizeOption);
+
   useEffect(() => {
-    setPagination((p) => ({ ...p, pageIndex: 0 }));
+    setPagination((p) => ({
+      ...p,
+      pageIndex: 0,
+      pageSize: resolvedPageSize,
+    }));
     setRowSelection({});
-  }, [serviceCode, statusFilter, q, onlyWithEmail]);
+  }, [serviceCode, statusFilter, q, onlyWithEmail, pageSizeOption]);
+
+  useEffect(() => {
+    setPagination((p) =>
+      p.pageSize === resolvedPageSize ? p : { ...p, pageSize: resolvedPageSize },
+    );
+  }, [resolvedPageSize]);
 
   const columns = useMemo<ColumnDef<InviteLead>[]>(
     () => [
@@ -319,7 +345,7 @@ export function InvitesWorkspace() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Invites</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Paginated ({PAGE_SIZE}/page). To resend: filter{" "}
+            Paginated list — choose page size below. To resend: filter{" "}
             <span className="text-foreground">Already invited</span>, select,
             Send again.
           </p>
@@ -501,31 +527,53 @@ export function InvitesWorkspace() {
             })}
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              Previous
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              Page {table.getState().pagination.pageIndex + 1} of{" "}
-              {Math.max(table.getPageCount(), 1)}
-              <span className="hidden sm:inline">
-                {" "}
-                · {PAGE_SIZE} per page
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center justify-between gap-2 sm:justify-start">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                Next
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
+              <span className="text-xs text-muted-foreground">
+                Page {table.getState().pagination.pageIndex + 1} of{" "}
+                {Math.max(table.getPageCount(), 1)}
+                <span className="hidden sm:inline">
+                  {" "}
+                  ·{" "}
+                  {pageSizeOption === "all"
+                    ? "all rows"
+                    : `${pageSizeOption} per page`}
+                </span>
               </span>
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              Next
-            </Button>
+              <Select
+                value={pageSizeOption}
+                onValueChange={(v) => setPageSizeOption(v as PageSizeOption)}
+              >
+                <SelectTrigger className="h-8 w-[7.5rem]" aria-label="Page size">
+                  <SelectValue placeholder="Page size" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt} value={opt}>
+                      {opt === "all" ? "All" : `${opt} / page`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </>
       )}

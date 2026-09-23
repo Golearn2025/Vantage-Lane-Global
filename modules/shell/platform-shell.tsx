@@ -32,7 +32,7 @@ import { signOut, useSessionProfile } from "@/modules/identity/session";
 import { toast } from "sonner";
 
 const navItems = [
-  { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/coverage", label: "Coverage", icon: LayoutGrid },
   { href: "/network", label: "Network", icon: MapPinned },
   { href: "/contacts", label: "Contacts", icon: ContactRound },

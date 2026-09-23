@@ -10,6 +10,7 @@ export type SessionProfile = {
   displayName: string | null;
   isPlatformUser: boolean;
   canManageNetwork: boolean;
+  canViewOpsDashboard: boolean;
 };
 
 export async function fetchSessionProfile(): Promise<SessionProfile | null> {
@@ -26,10 +27,15 @@ export async function fetchSessionProfile(): Promise<SessionProfile | null> {
     .maybeSingle();
   if (error) throw error;
 
-  const { data: canManageNetwork } = await supabase.rpc(
-    "has_platform_permission",
-    { perm_code: "platform.network.manage" },
-  );
+  const [{ data: canManageNetwork }, { data: canViewOpsDashboard }] =
+    await Promise.all([
+      supabase.rpc("has_platform_permission", {
+        perm_code: "platform.network.manage",
+      }),
+      supabase.rpc("has_platform_permission", {
+        perm_code: "platform.ops.dashboard",
+      }),
+    ]);
 
   return {
     id: user.id,
@@ -37,6 +43,7 @@ export async function fetchSessionProfile(): Promise<SessionProfile | null> {
     displayName: profile?.display_name ?? null,
     isPlatformUser: Boolean(profile?.is_platform_user),
     canManageNetwork: Boolean(canManageNetwork),
+    canViewOpsDashboard: Boolean(canViewOpsDashboard),
   };
 }
 
