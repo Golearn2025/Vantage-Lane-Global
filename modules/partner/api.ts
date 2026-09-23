@@ -343,7 +343,8 @@ export async function upsertPartnerRateCard(input: {
   currencyCode: string;
   distanceUnit: "KM" | "MILE";
   categoryRates: Array<{
-    vehicleCategoryId: string;
+    /** Null = service-level rate (Security / Yacht / Aviation). */
+    vehicleCategoryId: string | null;
     baseAmount: number | null;
     perUnitAmount: number | null;
     minimumAmount: number | null;
@@ -355,13 +356,17 @@ export async function upsertPartnerRateCard(input: {
     notes: string | null;
   }>;
 }): Promise<string> {
-  // Same class of bug as fleet: reject unknown / empty category IDs before insert.
+  // Same class of bug as fleet: reject unknown category IDs before insert.
+  // Null is allowed for non-GT service-level hourly/daily rates.
   const catalog = await fetchVehicleCategories();
   const validCategoryIds = new Set(catalog.map((c) => c.id));
   for (const cat of input.categoryRates) {
-    if (!cat.vehicleCategoryId || !validCategoryIds.has(cat.vehicleCategoryId)) {
+    if (
+      cat.vehicleCategoryId != null &&
+      !validCategoryIds.has(cat.vehicleCategoryId)
+    ) {
       throw new Error(
-        "One or more vehicle categories are invalid. Refresh the page and try again (same fix as fleet categories).",
+        "One or more vehicle categories are invalid. Refresh the page and try again.",
       );
     }
   }
@@ -420,7 +425,7 @@ export async function upsertPartnerRateCard(input: {
         organization_id: input.organizationId,
         rate_card_id: cardId,
         rule_type: "DISTANCE",
-        vehicle_category_id: cat.vehicleCategoryId,
+        vehicle_category_id: cat.vehicleCategoryId || null,
         base_amount: cat.baseAmount,
         per_unit_amount: cat.perUnitAmount,
         minimum_amount: cat.minimumAmount,
@@ -433,7 +438,7 @@ export async function upsertPartnerRateCard(input: {
         organization_id: input.organizationId,
         rate_card_id: cardId,
         rule_type: "HOURLY",
-        vehicle_category_id: cat.vehicleCategoryId,
+        vehicle_category_id: cat.vehicleCategoryId || null,
         hourly_amount: cat.hourlyAmount,
       });
     }
@@ -442,7 +447,7 @@ export async function upsertPartnerRateCard(input: {
         organization_id: input.organizationId,
         rate_card_id: cardId,
         rule_type: "DAILY",
-        vehicle_category_id: cat.vehicleCategoryId,
+        vehicle_category_id: cat.vehicleCategoryId || null,
         daily_amount: cat.dailyAmount,
       });
     }
@@ -451,7 +456,7 @@ export async function upsertPartnerRateCard(input: {
         organization_id: input.organizationId,
         rate_card_id: cardId,
         rule_type: "AIRPORT_TRANSFER",
-        vehicle_category_id: cat.vehicleCategoryId,
+        vehicle_category_id: cat.vehicleCategoryId || null,
         amount: cat.fixedTransferAmount,
         notes: "Airport ↔ city centre (partner declared)",
       });
@@ -462,7 +467,7 @@ export async function upsertPartnerRateCard(input: {
         organization_id: input.organizationId,
         rate_card_id: cardId,
         rule_type: "WAITING",
-        vehicle_category_id: cat.vehicleCategoryId,
+        vehicle_category_id: cat.vehicleCategoryId || null,
         wait_amount_per_unit: cat.perMinuteAmount,
         wait_unit: "MINUTE",
         notes: "Per-minute travel rate (partner declared)",

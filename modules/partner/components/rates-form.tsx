@@ -34,6 +34,10 @@ import {
   upsertPartnerRateCard,
 } from "@/modules/partner/api";
 import { cn } from "@/shared/lib/utils";
+import {
+  PartnerServiceRatesForm,
+  SERVICE_RATE_CODES,
+} from "./service-rates-form";
 
 /* ─── Types ──────────────────────────────────────────────────── */
 type CatRates = {
@@ -110,6 +114,28 @@ const CURRENCIES: { code: string; name: string; symbol: string; region: string }
 
 /* ─── Component ─────────────────────────────────────────────── */
 export function PartnerRatesForm() {
+  const orgQ = useQuery({ queryKey: ["partner", "org"], queryFn: fetchPartnerOrgContext });
+  const serviceCode = orgQ.data?.serviceCode ?? "GROUND_TRANSPORTATION";
+
+  // Security / Yacht / Aviation: hourly+daily form, no fleet dependency
+  if (orgQ.data && SERVICE_RATE_CODES.has(serviceCode)) {
+    return (
+      <PartnerServiceRatesForm
+        organizationId={orgQ.data.organizationId}
+        offeringId={orgQ.data.offeringId}
+        serviceCode={serviceCode}
+      />
+    );
+  }
+
+  if (orgQ.isLoading) {
+    return <p className="text-sm text-muted-foreground animate-pulse">Loading rates…</p>;
+  }
+
+  return <PartnerGtRatesForm />;
+}
+
+function PartnerGtRatesForm() {
   const qc = useQueryClient();
 
   const orgQ = useQuery({ queryKey: ["partner", "org"], queryFn: fetchPartnerOrgContext });
@@ -346,12 +372,15 @@ export function PartnerRatesForm() {
 
   if (activeCats.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border/60 px-6 py-10 text-center">
+      <div className="rounded-2xl border border-dashed border-border/60 px-6 py-10 text-center space-y-3">
         <p className="text-sm font-medium">No fleet declared yet</p>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Add your vehicles in the Fleet step first — rates are set per category
           you declared (must match the VL vehicle catalog).
         </p>
+        <Button asChild variant="outline" className="rounded-full">
+          <a href="/partner/fleet">Go to Fleet →</a>
+        </Button>
       </div>
     );
   }
@@ -482,7 +511,11 @@ export function PartnerRatesForm() {
           {activeCats.map((cat) => {
             const r = rates[cat.id] ?? { baseFare: "", perDistance: "", perMinute: "", minFare: "" };
             const isOpen = expanded[cat.id] ?? false;
-            const hasAnyRate = n(r.baseFare) != null || n(r.perDistance) != null;
+            const hasAnyRate =
+              n(r.baseFare) != null ||
+              n(r.perDistance) != null ||
+              n(r.perMinute) != null ||
+              n(r.minFare) != null;
 
             return (
               <div key={cat.id}>
