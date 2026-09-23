@@ -2501,6 +2501,10 @@ export type Database = {
         Returns: Database["public"]["Tables"]["locations"]["Row"]
       }
       rpc_quick_add_operator: { Args: { p_payload: Json }; Returns: Json }
+      rpc_mark_booker_interest: {
+        Args: { p_token: string }
+        Returns: Json
+      }
     }
     Enums: {
       activity_visibility: "VL_ONLY" | "ORG_SHARED"
