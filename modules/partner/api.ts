@@ -691,6 +691,15 @@ export async function saveFleetDeclaration(input: {
   }
 }
 
+export async function deleteFleetDeclaration(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("gt_fleet_declarations")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 export async function fetchDocumentTypes(): Promise<DocumentTypeRow[]> {
   const supabase = createClient();
   const { data, error } = await supabase

@@ -21,6 +21,7 @@ import {
   fetchMinVehicleYear,
   fetchPartnerOrgContext,
   fetchVehicleCategories,
+  deleteFleetDeclaration,
   saveFleetDeclaration,
 } from "@/modules/partner/api";
 import { cn } from "@/shared/lib/utils";
@@ -147,6 +148,8 @@ const YEAR_OPTIONS = Array.from(
 
 type FleetEntry = {
   id: string;
+  /** Set when editing an existing declared row. */
+  dbId?: string;
   vlCategory: VLCategoryCode | "";
   make: string;
   customMake: string;
@@ -194,8 +197,54 @@ export function PartnerFleetForm() {
   });
 
   const [entries, setEntries] = useState<FleetEntry[]>([emptyEntry()]);
+  const editingDbId = entries.find((e) => e.dbId)?.dbId ?? null;
 
   const minYear = minYearQ.data ?? 2023;
+
+  const codeByCategoryId = new Map(
+    (vehicleCatsQ.data ?? []).map((c) => [c.id, c.code]),
+  );
+
+  function startEdit(row: {
+    id: string;
+    vehicleCategoryId: string;
+    make: string | null;
+    modelFamily: string | null;
+    yearFrom: number | null;
+    quantity: number;
+  }) {
+    const code = codeByCategoryId.get(row.vehicleCategoryId) as
+      | VLCategoryCode
+      | undefined;
+    if (!code || !(VL_CATEGORIES as readonly { code: string }[]).some((c) => c.code === code)) {
+      toast.error("This category is no longer in the catalog. Contact support.");
+      return;
+    }
+
+    const makes = MAKES_BY_CATEGORY[code] ?? [];
+    const makeKnown = makes.some((m) => m.make === row.make);
+    const models = makes.find((m) => m.make === row.make)?.models ?? [];
+    const modelKnown = models.includes(row.modelFamily ?? "");
+    const year = row.yearFrom;
+    const yearInList = year != null && YEAR_OPTIONS.includes(year);
+
+    setEntries([
+      {
+        id: Math.random().toString(36).slice(2),
+        dbId: row.id,
+        vlCategory: code,
+        make: makeKnown ? (row.make ?? "") : "Other",
+        customMake: makeKnown ? "" : (row.make ?? ""),
+        model: modelKnown ? (row.modelFamily ?? "") : "Other",
+        customModel: modelKnown ? "" : (row.modelFamily ?? ""),
+        year: yearInList ? String(year) : "other",
+        customYear: yearInList || year == null ? "" : String(year),
+        qty: String(row.quantity || 1),
+      },
+    ]);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    toast.message("Editing fleet row — update fields and Save");
+  }
 
   function updateEntry(id: string, patch: Partial<FleetEntry>) {
     setEntries((prev) =>
@@ -220,6 +269,10 @@ export function PartnerFleetForm() {
 
   function removeEntry(id: string) {
     setEntries((prev) => (prev.length > 1 ? prev.filter((e) => e.id !== id) : prev));
+  }
+
+  function cancelEdit() {
+    setEntries([emptyEntry()]);
   }
 
   const save = useMutation({
@@ -256,9 +309,10 @@ export function PartnerFleetForm() {
         if (!Number.isFinite(qty) || qty < 1) throw new Error("Quantity must be at least 1");
 
         await saveFleetDeclaration({
+          id: entry.dbId ?? null,
           organizationId: orgQ.data.organizationId,
           offeringId: orgQ.data.offeringId,
-          vehicleCategoryId, // UUID corect din DB
+          vehicleCategoryId,
           make: resolvedMake,
           modelFamily: resolvedModel,
           yearFrom: resolvedYear,
@@ -267,9 +321,23 @@ export function PartnerFleetForm() {
       }
     },
     onSuccess: async () => {
-      toast.success("Fleet saved successfully");
+      toast.success(editingDbId ? "Fleet updated" : "Fleet saved successfully");
       setEntries([emptyEntry()]);
       await qc.invalidateQueries({ queryKey: ["partner", "fleet"] });
+      await qc.invalidateQueries({ queryKey: ["partner", "rates"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removeDeclared = useMutation({
+    mutationFn: async (id: string) => {
+      await deleteFleetDeclaration(id);
+    },
+    onSuccess: async () => {
+      toast.success("Vehicle removed from fleet");
+      if (editingDbId) setEntries([emptyEntry()]);
+      await qc.invalidateQueries({ queryKey: ["partner", "fleet"] });
+      await qc.invalidateQueries({ queryKey: ["partner", "rates"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -548,26 +616,43 @@ export function PartnerFleetForm() {
           );
         })}
 
-        {/* Add another */}
-        <button
-          type="button"
-          onClick={() => setEntries((prev) => [...prev, emptyEntry()])}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border/70 py-3.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-        >
-          <Plus className="h-4 w-4" />
-          Add another vehicle
-        </button>
+        {/* Add another — only when not editing an existing row */}
+        {!editingDbId && (
+          <button
+            type="button"
+            onClick={() => setEntries((prev) => [...prev, emptyEntry()])}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border/70 py-3.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+          >
+            <Plus className="h-4 w-4" />
+            Add another vehicle
+          </button>
+        )}
       </div>
 
       {/* Save */}
-      <Button
-        size="lg"
-        className="w-full rounded-full"
-        disabled={save.isPending}
-        onClick={() => save.mutate()}
-      >
-        {save.isPending ? "Saving…" : "Save fleet →"}
-      </Button>
+      <div className="space-y-2">
+        <Button
+          size="lg"
+          className="w-full rounded-full"
+          disabled={save.isPending || removeDeclared.isPending}
+          onClick={() => save.mutate()}
+        >
+          {save.isPending
+            ? "Saving…"
+            : editingDbId
+              ? "Update vehicle →"
+              : "Save fleet →"}
+        </Button>
+        {editingDbId && (
+          <button
+            type="button"
+            onClick={cancelEdit}
+            className="w-full py-2 text-sm text-muted-foreground hover:text-foreground"
+          >
+            Cancel edit
+          </button>
+        )}
+      </div>
 
       {/* Declared fleet */}
       {(fleetQ.data ?? []).length > 0 && (
@@ -578,17 +663,28 @@ export function PartnerFleetForm() {
           <div className="divide-y divide-border/50 rounded-xl border border-border/60 bg-card overflow-hidden">
             {(fleetQ.data ?? []).map((row) => {
               const isOld = row.yearFrom != null && row.yearFrom < minYear;
+              const catCode = codeByCategoryId.get(row.vehicleCategoryId);
+              const catLabel =
+                VL_CATEGORIES.find((c) => c.code === catCode)?.label ?? catCode;
+              const isEditingThis = editingDbId === row.id;
               return (
-                <div key={row.id} className="flex items-center justify-between px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
+                <div
+                  key={row.id}
+                  className={cn(
+                    "flex items-center justify-between gap-3 px-4 py-3",
+                    isEditingThis && "bg-primary/5",
+                  )}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
                       <Car className="h-4 w-4 text-muted-foreground" />
                     </div>
-                    <div>
-                      <p className="text-sm font-medium">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
                         {row.make} {row.modelFamily}
                       </p>
                       <p className="text-xs text-muted-foreground">
+                        {catLabel ? `${catLabel} · ` : ""}
                         {row.yearFrom} · ×{row.quantity}
                         {isOld && (
                           <span className="ml-1.5 text-warning-foreground">
@@ -597,6 +693,33 @@ export function PartnerFleetForm() {
                         )}
                       </p>
                     </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={save.isPending || removeDeclared.isPending}
+                      onClick={() => startEdit(row)}
+                      className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      disabled={save.isPending || removeDeclared.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Remove ${row.make} ${row.modelFamily} from your fleet?`,
+                          )
+                        ) {
+                          removeDeclared.mutate(row.id);
+                        }
+                      }}
+                      className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500 disabled:opacity-50"
+                      aria-label="Delete vehicle"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               );
