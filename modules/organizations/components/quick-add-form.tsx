@@ -323,11 +323,9 @@ export function QuickAddOperatorForm() {
           title="Coverage"
           description={
             form.watch("service_code") === "GROUND_TRANSPORTATION" ||
-            form.watch("service_code") === "AVIATION"
+            form.watch("service_code") === "PRIVATE_AVIATION"
               ? "Primary zone (city + radius) then optional secondary airports."
-              : form.watch("service_code") === "YACHT"
-                ? "Primary marina / coastal city + radius, then optional other ports."
-                : "Primary city + radius, then optional extra cities (no airports)."
+              : "Primary city + radius, then optional extra cities (no airports)."
           }
           optional
         >
