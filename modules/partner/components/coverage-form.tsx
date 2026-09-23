@@ -18,7 +18,6 @@ import {
 /**
  * Same data model as admin Add Operator coverage:
  * offering_coverages + catalog locations + optional radius_km.
- * Soft-linked LEADs keep their own coverage; this writes on the partner org.
  */
 export function PartnerCoverageForm() {
   const qc = useQueryClient();
@@ -41,7 +40,7 @@ export function PartnerCoverageForm() {
       const primary = draft?.primary;
       if (!primary) {
         throw new Error(
-          "Pick a primary zone from the catalog (tap a result — typing alone does nothing)",
+          "First search your city and tap a result from the list",
         );
       }
       const items = [
@@ -80,6 +79,7 @@ export function PartnerCoverageForm() {
   }
 
   const existing = covQ.data ?? [];
+  const hasPrimary = Boolean(draft?.primary);
 
   return (
     <div className="space-y-6">
@@ -88,11 +88,37 @@ export function PartnerCoverageForm() {
           Coverage
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Same as when we add you as a lead: primary city / area + radius, then
-          optional airports. This is how you appear on the network map and match
-          jobs.
+          Tell us where you operate so we can match jobs near you. Same idea as
+          when we add partners on our side.
         </p>
       </div>
+
+      <ol className="space-y-2 rounded-2xl border border-border/60 bg-muted/30 px-4 py-4 text-sm">
+        <li>
+          <span className="font-semibold text-foreground">1. City</span>
+          <span className="text-muted-foreground">
+            {" "}
+            — search your main city, then <strong>tap a suggestion</strong>{" "}
+            (typing alone does nothing).
+          </span>
+        </li>
+        <li>
+          <span className="font-semibold text-foreground">2. Radius</span>
+          <span className="text-muted-foreground">
+            {" "}
+            — after the city is selected, set how far you cover on the map
+            (km).
+          </span>
+        </li>
+        <li>
+          <span className="font-semibold text-foreground">3. Airports</span>
+          <span className="text-muted-foreground">
+            {" "}
+            — optionally add airports (LGW, LHR…) the same way, then{" "}
+            <strong>Save coverage</strong>.
+          </span>
+        </li>
+      </ol>
 
       {existing.length > 0 && (
         <section className="rounded-2xl border border-border/60 bg-card p-5 space-y-3">
@@ -129,15 +155,33 @@ export function PartnerCoverageForm() {
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           {existing.length > 0 ? "Update coverage" : "Set coverage"}
         </p>
-        <CoverageComposer key={composerKey} onChange={setDraft} />
+        <CoverageComposer
+          key={composerKey}
+          audience="partner"
+          onChange={setDraft}
+        />
         <Button
           size="lg"
           className="w-full rounded-full"
-          disabled={save.isPending || !draft?.primary}
+          disabled={save.isPending || !hasPrimary}
           onClick={() => save.mutate()}
         >
-          {save.isPending ? "Saving…" : "Save coverage →"}
+          {save.isPending
+            ? "Saving…"
+            : hasPrimary
+              ? "Save coverage →"
+              : "Select a city first (tap a result)"}
         </Button>
+        {!hasPrimary ? (
+          <p className="text-center text-[11px] text-muted-foreground">
+            The Save button unlocks after you tap a city from the search
+            suggestions.
+          </p>
+        ) : (
+          <p className="text-center text-[11px] text-muted-foreground">
+            Adjust radius and optional airports above, then save.
+          </p>
+        )}
       </section>
     </div>
   );
