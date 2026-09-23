@@ -61,6 +61,7 @@ export type RateRuleRow = {
   amount: number | null;
   waitAmountPerUnit: number | null;
   waitUnit: string | null;
+  minHours: number | null;
   notes: string | null;
 };
 
@@ -402,7 +403,7 @@ export async function fetchDraftRateCard(
   const { data: rules, error: rulesErr } = await db()
     .from("gt_rate_rules")
     .select(
-      "id, rate_card_id, rule_type, vehicle_category_id, base_amount, per_unit_amount, minimum_amount, hourly_amount, daily_amount, amount, wait_amount_per_unit, wait_unit, notes",
+      "id, rate_card_id, rule_type, vehicle_category_id, base_amount, per_unit_amount, minimum_amount, hourly_amount, daily_amount, amount, wait_amount_per_unit, wait_unit, min_hours, notes",
     )
     .eq("rate_card_id", cardRow.id)
     .is("archived_at", null);
@@ -433,6 +434,7 @@ export async function fetchDraftRateCard(
       waitAmountPerUnit:
         r.wait_amount_per_unit != null ? Number(r.wait_amount_per_unit) : null,
       waitUnit: (r.wait_unit as string) ?? null,
+      minHours: r.min_hours != null ? Number(r.min_hours) : null,
       notes: (r.notes as string) ?? null,
     })),
   };
@@ -460,6 +462,8 @@ export async function upsertPartnerRateCard(input: {
     fixedTransferAmount: number | null;
     /** Per-minute travel rate (stored as WAITING / MINUTE). */
     perMinuteAmount?: number | null;
+    /** Minimum billable hours for HOURLY hire. */
+    minHours?: number | null;
     notes: string | null;
   }>;
 }): Promise<string> {
@@ -547,6 +551,7 @@ export async function upsertPartnerRateCard(input: {
         rule_type: "HOURLY",
         vehicle_category_id: cat.vehicleCategoryId || null,
         hourly_amount: cat.hourlyAmount,
+        min_hours: cat.minHours ?? null,
       });
     }
     if (cat.dailyAmount != null) {

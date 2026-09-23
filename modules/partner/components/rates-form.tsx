@@ -45,20 +45,36 @@ type CatRates = {
   perDistance: string;   // per km or per mile
   perMinute: string;     // per minute of travel time
   hourly: string;        // as-directed / hourly hire
-  minFare: string;       // minimum charge
+  minHours: string;      // minimum billable hours for hourly
+  minFare: string;       // minimum charge (one-way)
 };
 
+type SimMode = "one_way" | "hourly";
+
 type SimResult = {
-  distanceValue: number;   // km or miles
-  distanceLabel: string;   // e.g. "15.3 mi"
-  durationMins: number;    // minutes
-  durationLabel: string;   // e.g. "24 mins"
-  estimated: number;       // computed fare
-  appliedMinFare: boolean; // true if min fare was applied
+  mode: SimMode;
+  distanceValue: number;   // km or miles (one-way)
+  distanceLabel: string;
+  durationMins: number;
+  durationLabel: string;
+  hoursSelected?: number;
+  hoursBilled?: number;
+  estimated: number;
+  appliedMinFare: boolean;
+  appliedMinHours?: boolean;
   bandLow?: number;
   bandHigh?: number;
   bandStatus?: "ok" | "low" | "high";
 };
+
+const emptyCatRates = (): CatRates => ({
+  baseFare: "",
+  perDistance: "",
+  perMinute: "",
+  hourly: "",
+  minHours: "",
+  minFare: "",
+});
 
 /* ─── Helpers ────────────────────────────────────────────────── */
 function n(v: string): number | null {
@@ -164,9 +180,11 @@ function PartnerGtRatesForm() {
   const [rates, setRates] = useState<Record<string, CatRates>>({});
 
   /* ── Simulator state ── */
+  const [simMode, setSimMode] = useState<SimMode>("one_way");
   const [simCatId, setSimCatId] = useState<string>("");
   const [simOrigin, setSimOrigin] = useState("");
   const [simDest, setSimDest] = useState("");
+  const [simHours, setSimHours] = useState("3");
   const [simLoading, setSimLoading] = useState(false);
   const [simResult, setSimResult] = useState<SimResult | null>(null);
 
@@ -188,13 +206,7 @@ function PartnerGtRatesForm() {
 
     const next: Record<string, CatRates> = {};
     for (const c of catsQ.data) {
-      next[c.id] = {
-        baseFare: "",
-        perDistance: "",
-        perMinute: "",
-        hourly: "",
-        minFare: "",
-      };
+      next[c.id] = emptyCatRates();
     }
 
     if (draftQ.data?.card) {
@@ -215,6 +227,8 @@ function PartnerGtRatesForm() {
         }
         if (rule.ruleType === "HOURLY" && rule.hourlyAmount != null) {
           next[id].hourly = rule.hourlyAmount.toString();
+          next[id].minHours =
+            rule.minHours != null ? String(rule.minHours) : "";
         }
       }
     }
@@ -243,13 +257,7 @@ function PartnerGtRatesForm() {
   function setField(catId: string, field: keyof CatRates, value: string) {
     setRatesDirty(true);
     setRates((prev) => {
-      const current = prev[catId] ?? {
-        baseFare: "",
-        perDistance: "",
-        perMinute: "",
-        hourly: "",
-        minFare: "",
-      };
+      const current = prev[catId] ?? emptyCatRates();
       return {
         ...prev,
         [catId]: { ...current, [field]: value },
@@ -260,8 +268,43 @@ function PartnerGtRatesForm() {
 
   /* ── Run simulator ── */
   async function runSim() {
-    if (!simCatId || !simOrigin.trim() || !simDest.trim()) {
-      toast.error("Choose a category and fill in both locations");
+    if (!simCatId) {
+      toast.error("Choose a vehicle category");
+      return;
+    }
+    const catRates = rates[simCatId] ?? emptyCatRates();
+
+    if (simMode === "hourly") {
+      const hourlyRate = n(catRates.hourly);
+      if (hourlyRate == null) {
+        toast.error("Set an hourly rate for this category first");
+        return;
+      }
+      const minH = n(catRates.minHours) ?? 0;
+      const selected = n(simHours);
+      if (selected == null || selected <= 0) {
+        toast.error("Enter how many hours to simulate");
+        return;
+      }
+      const billed = Math.max(selected, minH);
+      const fare = hourlyRate * billed;
+      setSimResult({
+        mode: "hourly",
+        distanceValue: 0,
+        distanceLabel: "—",
+        durationMins: billed * 60,
+        durationLabel: `${billed} h billed`,
+        hoursSelected: selected,
+        hoursBilled: billed,
+        estimated: fare,
+        appliedMinFare: false,
+        appliedMinHours: billed > selected,
+      });
+      return;
+    }
+
+    if (!simOrigin.trim() || !simDest.trim()) {
+      toast.error("Choose pick-up and drop-off for a one-way trip");
       return;
     }
     setSimLoading(true);
@@ -282,16 +325,8 @@ function PartnerGtRatesForm() {
 
       const distVal = data.distance ?? 0;
       const durMins = data.durationMins ?? 0;
-      const catRates = rates[simCatId] ?? {
-        baseFare: "",
-        perDistance: "",
-        perMinute: "",
-        hourly: "",
-        minFare: "",
-      };
       const { fare, appliedMin } = computeFare(catRates, distVal, durMins);
 
-      // Band comparison — only show if currency matches benchmark currency
       const band = (bandsQ.data ?? []).find(
         (b) => b.vehicleCategoryId === simCatId && b.currencyCode === currency,
       );
@@ -303,8 +338,12 @@ function PartnerGtRatesForm() {
       }
 
       setSimResult({
+        mode: "one_way",
         distanceValue: distVal,
-        distanceLabel: data.distanceLabel ?? data.label ?? `${distVal.toFixed(1)} ${distanceUnit.toLowerCase()}`,
+        distanceLabel:
+          data.distanceLabel ??
+          data.label ??
+          `${distVal.toFixed(1)} ${distanceUnit.toLowerCase()}`,
         durationMins: durMins,
         durationLabel: data.durationLabel ?? `${Math.round(durMins)} min`,
         estimated: fare,
@@ -340,6 +379,7 @@ function PartnerGtRatesForm() {
           perUnitAmount: n(r.perDistance),
           minimumAmount: n(r.minFare),
           hourlyAmount: n(r.hourly),
+          minHours: n(r.minHours),
           dailyAmount: null as number | null,
           fixedTransferAmount: null as number | null,
           perMinuteAmount: n(r.perMinute),
@@ -414,6 +454,24 @@ function PartnerGtRatesForm() {
           Set your prices per vehicle category. Only categories you declared in your fleet are shown.
         </p>
       </div>
+
+      <section className="rounded-2xl border border-border/60 bg-muted/30 px-4 py-4 text-sm space-y-2">
+        <p className="font-semibold text-foreground">How pricing works</p>
+        <ul className="space-y-1.5 text-muted-foreground list-disc pl-4">
+          <li>
+            <span className="text-foreground font-medium">One-way</span> — airport
+            / point-to-point. Uses base + distance + per-minute (+ min fare if the
+            total is lower). Simulator needs pick-up and drop-off.
+          </li>
+          <li>
+            <span className="text-foreground font-medium">Hourly</span> — as-directed
+            hire. Price = hourly rate × hours. Set a{" "}
+            <span className="text-foreground font-medium">min hours</span> (e.g. 3)
+            so shorter bookings still bill the minimum. Simulator only needs
+            category + hours — no addresses.
+          </li>
+        </ul>
+      </section>
 
       {/* ── Card settings ── */}
       <section className="rounded-2xl border border-border/60 bg-card p-5 space-y-4">
@@ -508,35 +566,32 @@ function PartnerGtRatesForm() {
 
         <div className="divide-y divide-border/50 rounded-2xl border border-border/60 overflow-hidden bg-card">
           {/* Table header */}
-          <div className="grid grid-cols-[minmax(0,1.2fr)_repeat(5,minmax(0,72px))] gap-1 px-3 py-2.5 bg-muted/40 sm:gap-0 sm:px-4 sm:grid-cols-[1fr_78px_78px_78px_78px_78px]">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="grid grid-cols-[minmax(0,1.1fr)_repeat(6,minmax(0,64px))] gap-1 px-2 py-2.5 bg-muted/40 sm:px-4 sm:grid-cols-[1fr_70px_70px_70px_70px_64px_70px]">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               Category
             </p>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
               Base
             </p>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
               /{distanceUnit === "MILE" ? "mi" : "km"}
             </p>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
               /min
             </p>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
               /hr
             </p>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
-              Min
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
+              Min h
+            </p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
+              Min $
             </p>
           </div>
 
           {activeCats.map((cat) => {
-            const r = rates[cat.id] ?? {
-              baseFare: "",
-              perDistance: "",
-              perMinute: "",
-              hourly: "",
-              minFare: "",
-            };
+            const r = rates[cat.id] ?? emptyCatRates();
             const isOpen = expanded[cat.id] ?? false;
             const hasAnyRate =
               n(r.baseFare) != null ||
@@ -547,14 +602,12 @@ function PartnerGtRatesForm() {
 
             return (
               <div key={cat.id}>
-                {/* Main row */}
                 <div
                   className={cn(
-                    "grid grid-cols-[minmax(0,1.2fr)_repeat(5,minmax(0,72px))] gap-1 px-3 py-3 items-center sm:gap-0 sm:px-4 sm:grid-cols-[1fr_78px_78px_78px_78px_78px]",
+                    "grid grid-cols-[minmax(0,1.1fr)_repeat(6,minmax(0,64px))] gap-1 px-2 py-3 items-center sm:px-4 sm:grid-cols-[1fr_70px_70px_70px_70px_64px_70px]",
                     isOpen && "bg-muted/20",
                   )}
                 >
-                  {/* Category name + expand */}
                   <button
                     type="button"
                     onClick={() => setExpanded((p) => ({ ...p, [cat.id]: !isOpen }))}
@@ -575,7 +628,9 @@ function PartnerGtRatesForm() {
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{cat.name}</p>
                       {cat.exampleModels && (
-                        <p className="text-[11px] text-muted-foreground truncate">{cat.exampleModels}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {cat.exampleModels}
+                        </p>
                       )}
                     </div>
                     {isOpen ? (
@@ -585,56 +640,45 @@ function PartnerGtRatesForm() {
                     )}
                   </button>
 
-                  {/* Inline inputs */}
                   {(
                     [
                       "baseFare",
                       "perDistance",
                       "perMinute",
                       "hourly",
+                      "minHours",
                       "minFare",
                     ] as const
                   ).map((field) => (
-                    <div key={field} className="sm:pl-2">
-                      <div className="relative">
-                        <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
-                          {currency.slice(0, 1)}
-                        </span>
-                        <Input
-                          inputMode="decimal"
-                          value={r[field]}
-                          onChange={(e) => setField(cat.id, field, e.target.value)}
-                          className="pl-4 pr-1 text-right text-sm h-8"
-                          placeholder="0"
-                        />
-                      </div>
+                    <div key={field}>
+                      <Input
+                        inputMode="decimal"
+                        value={r[field]}
+                        onChange={(e) => setField(cat.id, field, e.target.value)}
+                        className="px-1 text-right text-sm h-8"
+                        placeholder={field === "minHours" ? "3" : "0"}
+                      />
                     </div>
                   ))}
                 </div>
 
-                {/* Expanded helper */}
                 {isOpen && (
                   <div className="border-t border-border/40 bg-muted/10 px-4 py-3">
-                    <div className="grid grid-cols-2 gap-3 text-[11px] text-muted-foreground sm:grid-cols-5">
+                    <div className="grid grid-cols-2 gap-3 text-[11px] text-muted-foreground sm:grid-cols-3">
                       <div>
-                        <p className="font-semibold text-foreground">Base fare</p>
-                        <p>Fixed charge at the start of every trip.</p>
+                        <p className="font-semibold text-foreground">One-way fields</p>
+                        <p>Base, per distance, per minute, and min fare for point-to-point trips.</p>
                       </div>
                       <div>
-                        <p className="font-semibold text-foreground">Per {distanceUnit === "MILE" ? "mile" : "km"}</p>
-                        <p>Charged for distance driven.</p>
+                        <p className="font-semibold text-foreground">Hourly (/hr)</p>
+                        <p>As-directed rate charged per hour for this category.</p>
                       </div>
                       <div>
-                        <p className="font-semibold text-foreground">Per minute</p>
-                        <p>Travel / waiting time rate from duration.</p>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-foreground">Hourly</p>
-                        <p>As-directed / hourly hire rate for this category.</p>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-foreground">Min fare</p>
-                        <p>Floor price if the computed total is lower.</p>
+                        <p className="font-semibold text-foreground">Min hours</p>
+                        <p>
+                          Shortest hire you accept (e.g. 3). Simulator bills at least
+                          this many hours even if fewer are selected.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -647,68 +691,184 @@ function PartnerGtRatesForm() {
 
       {/* ── Simulator ── */}
       <section className="rounded-2xl border border-border/60 bg-card p-5 space-y-5">
-        <div className="flex items-center gap-2">
-          <Calculator className="h-4 w-4 text-primary" />
-          <p className="text-sm font-semibold">Price simulator</p>
-          <p className="ml-auto text-[11px] text-muted-foreground">
-            Enter any real route — Google Maps calculates distance &amp; duration
+        <div>
+          <div className="flex items-center gap-2">
+            <Calculator className="h-4 w-4 text-primary" />
+            <p className="text-sm font-semibold">Price simulator</p>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Pick a pricing mode and a category from your fleet, then calculate.
           </p>
         </div>
 
-        {/* Category selector */}
-        <div className="flex flex-wrap gap-2">
-          {activeCats.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => { setSimCatId(cat.id); setSimResult(null); }}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                simCatId === cat.id
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-muted/40 text-muted-foreground hover:border-primary/40 hover:text-foreground",
-              )}
-            >
-              {cat.name}
-            </button>
-          ))}
+        {/* Mode */}
+        <div className="space-y-1.5">
+          <Label className="text-xs">Pricing mode</Label>
+          <div className="flex gap-2">
+            {(
+              [
+                { id: "one_way" as const, label: "One way", hint: "Addresses + route" },
+                { id: "hourly" as const, label: "Hourly", hint: "Hours only" },
+              ] as const
+            ).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => {
+                  setSimMode(m.id);
+                  setSimResult(null);
+                  if (m.id === "hourly" && simCatId) {
+                    const minH = n(rates[simCatId]?.minHours);
+                    if (minH != null && minH > 0) setSimHours(String(minH));
+                  }
+                }}
+                className={cn(
+                  "flex-1 rounded-xl border px-3 py-2.5 text-left transition-colors",
+                  simMode === m.id
+                    ? "border-primary bg-primary/10"
+                    : "border-border bg-muted/30 hover:border-primary/40",
+                )}
+              >
+                <p className="text-sm font-semibold">{m.label}</p>
+                <p className="text-[11px] text-muted-foreground">{m.hint}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Route inputs */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 text-xs">
-              <Navigation className="h-3 w-3" /> Pick-up location
-            </Label>
-            <PlacesInput
-              placeholder="e.g. Heathrow Airport, London"
-              value={simOrigin}
-              onChange={(v) => { setSimOrigin(v); setSimResult(null); }}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 text-xs">
-              <MapPin className="h-3 w-3" /> Drop-off location
-            </Label>
-            <PlacesInput
-              placeholder="e.g. The Savoy, London"
-              value={simDest}
-              onChange={(v) => { setSimDest(v); setSimResult(null); }}
-            />
+        {/* Category */}
+        <div className="space-y-1.5">
+          <Label className="text-xs">Vehicle category</Label>
+          <div className="flex flex-wrap gap-2">
+            {activeCats.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => {
+                  setSimCatId(cat.id);
+                  setSimResult(null);
+                  if (simMode === "hourly") {
+                    const minH = n(rates[cat.id]?.minHours);
+                    if (minH != null && minH > 0) setSimHours(String(minH));
+                  }
+                }}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                  simCatId === cat.id
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-muted/40 text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                )}
+              >
+                {cat.name}
+              </button>
+            ))}
           </div>
         </div>
+
+        {simMode === "one_way" ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5 text-xs">
+                <Navigation className="h-3 w-3" /> Pick-up location
+              </Label>
+              <PlacesInput
+                placeholder="e.g. Heathrow Airport, London"
+                value={simOrigin}
+                onChange={(v) => {
+                  setSimOrigin(v);
+                  setSimResult(null);
+                }}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5 text-xs">
+                <MapPin className="h-3 w-3" /> Drop-off location
+              </Label>
+              <PlacesInput
+                placeholder="e.g. The Savoy, London"
+                value={simDest}
+                onChange={(v) => {
+                  setSimDest(v);
+                  setSimResult(null);
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-4">
+            <Label className="text-xs">Hours to hire</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              {[2, 3, 4, 5, 6, 8, 10, 12].map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => {
+                    setSimHours(String(h));
+                    setSimResult(null);
+                  }}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-medium",
+                    n(simHours) === h
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/40",
+                  )}
+                >
+                  {h}h
+                </button>
+              ))}
+              <Input
+                inputMode="decimal"
+                className="h-8 w-20"
+                value={simHours}
+                onChange={(e) => {
+                  setSimHours(e.target.value);
+                  setSimResult(null);
+                }}
+                placeholder="hrs"
+              />
+            </div>
+            {simCatId && n(rates[simCatId]?.minHours) != null ? (
+              <p className="text-[11px] text-muted-foreground">
+                Your min hire for this category is{" "}
+                <strong className="text-foreground">
+                  {n(rates[simCatId].minHours)} hours
+                </strong>
+                . Shorter selections still bill the minimum.
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                No addresses needed — hourly is as-directed time, not a mapped
+                route.
+              </p>
+            )}
+            {simCatId && n(rates[simCatId]?.hourly) == null ? (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                Set an /hr rate for this category in the table above first.
+              </p>
+            ) : null}
+          </div>
+        )}
 
         <Button
           type="button"
           variant="outline"
           className="w-full"
-          disabled={simLoading || !simCatId || !simOrigin.trim() || !simDest.trim()}
-          onClick={runSim}
+          disabled={
+            simLoading ||
+            !simCatId ||
+            (simMode === "one_way"
+              ? !simOrigin.trim() || !simDest.trim()
+              : !n(simHours))
+          }
+          onClick={() => void runSim()}
         >
-          {simLoading ? "Calculating route…" : "Calculate price →"}
+          {simLoading
+            ? "Calculating…"
+            : simMode === "hourly"
+              ? "Calculate hourly price →"
+              : "Calculate one-way price →"}
         </Button>
 
-        {/* Result card */}
         {simResult && simCat && (
           <div
             className={cn(
@@ -722,49 +882,115 @@ function PartnerGtRatesForm() {
                     : "border-border/60 bg-muted/20",
             )}
           >
-            {/* Route stats */}
             <div className="flex flex-wrap gap-4 text-sm">
               <div>
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Distance</p>
-                <p className="font-semibold">{simResult.distanceLabel}</p>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                  Mode
+                </p>
+                <p className="font-semibold">
+                  {simResult.mode === "hourly" ? "Hourly" : "One way"}
+                </p>
               </div>
               <div>
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Duration</p>
-                <p className="font-semibold">{simResult.durationLabel}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Category</p>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                  Category
+                </p>
                 <p className="font-semibold">{simCat.name}</p>
               </div>
+              {simResult.mode === "one_way" ? (
+                <>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                      Distance
+                    </p>
+                    <p className="font-semibold">{simResult.distanceLabel}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                      Duration
+                    </p>
+                    <p className="font-semibold">{simResult.durationLabel}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                      Selected
+                    </p>
+                    <p className="font-semibold">{simResult.hoursSelected} h</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                      Billed
+                    </p>
+                    <p className="font-semibold">{simResult.hoursBilled} h</p>
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* Price breakdown */}
             <div className="rounded-lg bg-background/60 px-4 py-3 space-y-1.5">
-              {n(rates[simCatId]?.baseFare) != null && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Base fare</span>
-                  <span>{currency} {n(rates[simCatId].baseFare)!.toFixed(2)}</span>
-                </div>
-              )}
-              {n(rates[simCatId]?.perDistance) != null && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    {simResult.distanceLabel} × {currency}{n(rates[simCatId].perDistance)!.toFixed(2)}/{distanceUnit === "MILE" ? "mi" : "km"}
-                  </span>
-                  <span>
-                    {currency} {(simResult.distanceValue * n(rates[simCatId].perDistance)!).toFixed(2)}
-                  </span>
-                </div>
-              )}
-              {n(rates[simCatId]?.perMinute) != null && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    {simResult.durationLabel} × {currency}{n(rates[simCatId].perMinute)!.toFixed(2)}/min
-                  </span>
-                  <span>
-                    {currency} {(simResult.durationMins * n(rates[simCatId].perMinute)!).toFixed(2)}
-                  </span>
-                </div>
+              {simResult.mode === "hourly" ? (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      {simResult.hoursBilled} h × {currency}{" "}
+                      {n(rates[simCatId]?.hourly)?.toFixed(2)}/hr
+                    </span>
+                    <span>
+                      {currency} {simResult.estimated.toFixed(2)}
+                    </span>
+                  </div>
+                  {simResult.appliedMinHours ? (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                      Min hours applied (you selected {simResult.hoursSelected}{" "}
+                      h).
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  {n(rates[simCatId]?.baseFare) != null && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Base fare</span>
+                      <span>
+                        {currency} {n(rates[simCatId].baseFare)!.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {n(rates[simCatId]?.perDistance) != null && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {simResult.distanceLabel} × {currency}
+                        {n(rates[simCatId].perDistance)!.toFixed(2)}/
+                        {distanceUnit === "MILE" ? "mi" : "km"}
+                      </span>
+                      <span>
+                        {currency}{" "}
+                        {(
+                          simResult.distanceValue *
+                          n(rates[simCatId].perDistance)!
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {n(rates[simCatId]?.perMinute) != null && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {simResult.durationLabel} × {currency}
+                        {n(rates[simCatId].perMinute)!.toFixed(2)}/min
+                      </span>
+                      <span>
+                        {currency}{" "}
+                        {(
+                          simResult.durationMins *
+                          n(rates[simCatId].perMinute)!
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
               <div className="border-t border-border/40 pt-1.5 flex justify-between text-base font-bold">
                 <span>
@@ -781,28 +1007,32 @@ function PartnerGtRatesForm() {
               </div>
             </div>
 
-            {/* Band status */}
-            {simResult.bandStatus ? (
-              <div
-                className={cn(
-                  "rounded-lg px-3 py-2.5 text-sm",
-                  simResult.bandStatus === "ok" && "bg-green-500/10 text-green-700 dark:text-green-400",
-                  simResult.bandStatus === "low" && "bg-amber-400/15 text-amber-700 dark:text-amber-400",
-                  simResult.bandStatus === "high" && "bg-red-500/10 text-red-700 dark:text-red-400",
-                )}
-              >
-                {simResult.bandStatus === "ok" &&
-                  `✓ In line with the market for this route (${currency} ${simResult.bandLow}–${simResult.bandHigh})`}
-                {simResult.bandStatus === "low" &&
-                  `⚠ Your rate looks low — market starts at ${currency} ${simResult.bandLow} for this distance.`}
-                {simResult.bandStatus === "high" &&
-                  `⚠ Your rate looks high — market cap is ${currency} ${simResult.bandHigh} for this distance.`}
-              </div>
-            ) : (
-              <p className="text-[11px] text-muted-foreground italic">
-                No market benchmark available for your currency yet — we'll build this from real partner data as the network grows.
-              </p>
-            )}
+            {simResult.mode === "one_way" ? (
+              simResult.bandStatus ? (
+                <div
+                  className={cn(
+                    "rounded-lg px-3 py-2.5 text-sm",
+                    simResult.bandStatus === "ok" &&
+                      "bg-green-500/10 text-green-700 dark:text-green-400",
+                    simResult.bandStatus === "low" &&
+                      "bg-amber-400/15 text-amber-700 dark:text-amber-400",
+                    simResult.bandStatus === "high" &&
+                      "bg-red-500/10 text-red-700 dark:text-red-400",
+                  )}
+                >
+                  {simResult.bandStatus === "ok" &&
+                    `✓ In line with the market for this route (${currency} ${simResult.bandLow}–${simResult.bandHigh})`}
+                  {simResult.bandStatus === "low" &&
+                    `⚠ Your rate looks low — market starts at ${currency} ${simResult.bandLow} for this distance.`}
+                  {simResult.bandStatus === "high" &&
+                    `⚠ Your rate looks high — market cap is ${currency} ${simResult.bandHigh} for this distance.`}
+                </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground italic">
+                  No market benchmark available for your currency yet.
+                </p>
+              )
+            ) : null}
           </div>
         )}
       </section>
