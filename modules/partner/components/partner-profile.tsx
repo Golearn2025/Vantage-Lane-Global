@@ -131,7 +131,13 @@ function CompanyDetails({ orgId, displayName, legalName, phone }: {
 }
 
 /* ─── HQ address editor ─────────────────────────────────────── */
-function HQAddress({ orgId }: { orgId: string }) {
+function HQAddress({
+  orgId,
+  countryCode: orgCountry,
+}: {
+  orgId: string;
+  countryCode?: string | null;
+}) {
   const qc = useQueryClient();
   const locQ = useQuery({
     queryKey: ["partner", "hq-location", orgId],
@@ -163,13 +169,12 @@ function HQAddress({ orgId }: { orgId: string }) {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!loc?.id) throw new Error("No location record found");
-      // Extract city from address (first part before comma)
+      if (!address.trim()) throw new Error("Search and select an address");
       const city = address.split(",")[0].trim();
-      const countryCode = loc.countryCode ?? "XX";
+      const countryCode = loc?.countryCode ?? orgCountry ?? "GB";
       await updatePartnerHQLocation({
         orgId,
-        locationId: loc.id,
+        locationId: loc?.id ?? null,
         formattedAddress: address,
         city,
         countryCode,
@@ -201,11 +206,11 @@ function HQAddress({ orgId }: { orgId: string }) {
           placeholder="Search your office address or city…"
         />
         {coords ? (
-          <p className="text-[11px] text-green-600 dark:text-green-400 flex items-center gap-1">
-            📍 Location pinned on map
+          <p className="mt-1 text-[11px] text-green-600 dark:text-green-400 flex items-center gap-1">
+            Location pinned on map
           </p>
         ) : (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="mt-1 text-[11px] text-muted-foreground">
             Select from suggestions to pin your exact location on the partner map.
           </p>
         )}
@@ -281,7 +286,27 @@ export function PartnerProfilePage() {
       {/* HQ address */}
       <section className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm">
         <h2 className="mb-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">HQ / Operations address</h2>
-        {orgId ? <HQAddress orgId={orgId} /> : <div className="h-9 animate-pulse rounded-lg bg-muted/40" />}
+        {orgId ? (
+          <HQAddress orgId={orgId} countryCode={org.data?.legalCountryCode} />
+        ) : (
+          <div className="h-9 animate-pulse rounded-lg bg-muted/40" />
+        )}
+      </section>
+
+      {/* Coverage — same tables as Add Operator */}
+      <section className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Coverage zone
+        </h2>
+        <p className="mb-4 text-xs text-muted-foreground">
+          Primary city + radius (and airports) so you match jobs on the map — same as our Add Operator form.
+        </p>
+        <a
+          href="/partner/coverage"
+          className="inline-flex text-sm font-medium text-primary underline underline-offset-2"
+        >
+          Set or update coverage →
+        </a>
       </section>
 
       {/* Account */}

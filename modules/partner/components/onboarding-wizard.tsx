@@ -42,7 +42,8 @@ function StepComponent({
   if (stepKey === "operatives") return <OperativesStep />;
   if (stepKey === "properties") return <PropertiesStep />;
   if (stepKey === "specialisations") return <SpecialisationsStep />;
-  if (stepKey === "availability") return <AvailabilityStep />;
+  if (stepKey === "availability" || stepKey === "coverage")
+    return <AvailabilityStep />;
   if (stepKey === "vessels") return <VesselsStep />;
   if (stepKey === "services") return <ServicesStep />;
   if (stepKey === "capabilities") return <CapabilitiesStep />;

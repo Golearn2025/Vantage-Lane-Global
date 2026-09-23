@@ -45,36 +45,46 @@ const STANDARD_URLS: Record<string, string> = {
 /* Steps per service — mirrors wizard config */
 const WIZARD_STEPS: Record<string, { key: string; label: string; href: string }[]> = {
   GROUND_TRANSPORTATION: [
+    { key: "coverage", label: "Coverage zone", href: "/partner/coverage" },
     { key: "fleet", label: "Declare fleet", href: "/partner/fleet" },
     { key: "rates", label: "Enter rate card", href: "/partner/rates" },
     { key: "documents", label: "Upload documents", href: "/partner/documents" },
   ],
   AVIATION: [
+    { key: "coverage", label: "Coverage zone", href: "/partner/coverage" },
     { key: "aircraft", label: "Declare aircraft", href: "/partner/aircraft" },
+    { key: "rates", label: "Enter rate card", href: "/partner/rates" },
     { key: "documents", label: "Upload documents", href: "/partner/documents" },
   ],
   SECURITY: [
+    { key: "coverage", label: "Coverage zone", href: "/partner/coverage" },
     { key: "operatives", label: "Operatives & SIA", href: "/partner/operatives" },
+    { key: "rates", label: "Enter rate card", href: "/partner/rates" },
     { key: "documents", label: "Upload documents", href: "/partner/documents" },
   ],
   HOSPITALITY: [
+    { key: "coverage", label: "Coverage zone", href: "/partner/coverage" },
     { key: "properties", label: "Add properties", href: "/partner/properties" },
     { key: "documents", label: "Upload documents", href: "/partner/documents" },
   ],
   CONCIERGE: [
+    { key: "coverage", label: "Coverage zone", href: "/partner/coverage" },
     { key: "specialisations", label: "Specialisations", href: "/partner/specialisations" },
-    { key: "availability", label: "Availability & coverage", href: "/partner/availability" },
     { key: "documents", label: "Upload documents", href: "/partner/documents" },
   ],
   YACHT: [
+    { key: "coverage", label: "Coverage zone", href: "/partner/coverage" },
     { key: "vessels", label: "Declare vessels", href: "/partner/vessels" },
+    { key: "rates", label: "Enter rate card", href: "/partner/rates" },
     { key: "documents", label: "Upload documents", href: "/partner/documents" },
   ],
   MEDICAL: [
+    { key: "coverage", label: "Coverage zone", href: "/partner/coverage" },
     { key: "services", label: "Services & registration", href: "/partner/services" },
     { key: "documents", label: "Upload documents", href: "/partner/documents" },
   ],
   EVENTS: [
+    { key: "coverage", label: "Coverage zone", href: "/partner/coverage" },
     { key: "capabilities", label: "Capabilities", href: "/partner/capabilities" },
     { key: "documents", label: "Upload documents", href: "/partner/documents" },
   ],

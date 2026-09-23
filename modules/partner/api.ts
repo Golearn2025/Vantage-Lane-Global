@@ -218,7 +218,7 @@ export async function updatePartnerOrgDetails(input: {
 
 export async function updatePartnerHQLocation(input: {
   orgId: string;
-  locationId: string;
+  locationId: string | null;
   formattedAddress: string;
   city: string;
   countryCode: string;
@@ -227,19 +227,125 @@ export async function updatePartnerHQLocation(input: {
   placeId: string | null;
 }): Promise<void> {
   const supabase = createClient();
-  const { error } = await supabase
+  const payload = {
+    formatted_address: input.formattedAddress,
+    city: input.city,
+    country_code: input.countryCode,
+    lat: input.lat,
+    lng: input.lng,
+    place_id: input.placeId,
+    label: input.formattedAddress || `${input.city} base`,
+    location_kind: "OPS_BASE" as const,
+    is_primary: true,
+  };
+
+  if (input.locationId) {
+    const { error } = await supabase
+      .from("organization_locations")
+      .update(payload as any)
+      .eq("id", input.locationId);
+    if (error) throw error;
+    return;
+  }
+
+  // Bootstrap may have created a city-only row — prefer update primary, else insert
+  const { data: existing } = await supabase
     .from("organization_locations")
-    .update({
-      formatted_address: input.formattedAddress,
-      city: input.city,
-      country_code: input.countryCode,
-      lat: input.lat,
-      lng: input.lng,
-      place_id: input.placeId,
-      label: input.formattedAddress || input.city + " base",
-    } as any)
-    .eq("id", input.locationId);
+    .select("id")
+    .eq("organization_id", input.orgId)
+    .eq("is_primary", true)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from("organization_locations")
+      .update(payload as any)
+      .eq("id", existing.id);
+    if (error) throw error;
+    return;
+  }
+
+  const { error } = await supabase.from("organization_locations").insert({
+    organization_id: input.orgId,
+    ...payload,
+  } as any);
   if (error) throw error;
+}
+
+export type PartnerCoverageRow = {
+  id: string;
+  locationId: string | null;
+  locationName: string | null;
+  iata: string | null;
+  countryCode: string | null;
+  coverageMode: string;
+  radiusValue: number | null;
+  radiusUnit: string | null;
+};
+
+export async function fetchPartnerCoverages(
+  organizationId: string,
+): Promise<PartnerCoverageRow[]> {
+  const { data, error } = await db()
+    .from("offering_coverages")
+    .select("id, location_id, coverage_mode, radius_value, radius_unit, locations(name, iata, country_code)")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+
+  return (data ?? []).map((r: Record<string, unknown>) => {
+    const loc = r.locations as
+      | { name: string | null; iata: string | null; country_code: string | null }
+      | { name: string | null; iata: string | null; country_code: string | null }[]
+      | null;
+    const locRow = Array.isArray(loc) ? loc[0] : loc;
+    return {
+      id: r.id as string,
+      locationId: (r.location_id as string) ?? null,
+      locationName: locRow?.name ?? null,
+      iata: locRow?.iata ?? null,
+      countryCode: locRow?.country_code ?? null,
+      coverageMode: r.coverage_mode as string,
+      radiusValue: r.radius_value != null ? Number(r.radius_value) : null,
+      radiusUnit: (r.radius_unit as string) ?? null,
+    };
+  });
+}
+
+export async function savePartnerCoverages(input: {
+  organizationId: string;
+  offeringId: string;
+  items: Array<{
+    locationId: string;
+    coverageMode: "AIRPORT_EXPLICIT" | "CITY_OR_REGION" | "RADIUS";
+    radiusKm: number | null;
+  }>;
+}): Promise<void> {
+  if (input.items.length === 0) {
+    throw new Error("Pick at least a primary coverage zone from the catalog");
+  }
+
+  // Replace strategy (same org ownership as Add Operator → offering_coverages)
+  const { error: delErr } = await db()
+    .from("offering_coverages")
+    .delete()
+    .eq("organization_id", input.organizationId);
+  if (delErr) throw delErr;
+
+  const rows = input.items.map((item) => ({
+    organization_id: input.organizationId,
+    offering_id: input.offeringId,
+    location_id: item.locationId,
+    coverage_mode: item.coverageMode,
+    radius_value: item.radiusKm,
+    radius_unit: item.radiusKm != null ? ("KM" as const) : null,
+    is_informational_only: false,
+  }));
+
+  const { error: insErr } = await db().from("offering_coverages").insert(rows);
+  if (insErr) throw insErr;
 }
 
 export async function fetchVehicleCategories(): Promise<VehicleCategoryRow[]> {
