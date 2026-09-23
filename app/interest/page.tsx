@@ -1,9 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { createClient } from "@/shared/lib/supabase/client";
-import { EMAIL_LOGO_URL } from "@/shared/lib/email/brand";
 
 function InterestInner() {
   const searchParams = useSearchParams();
@@ -36,12 +36,13 @@ function InterestInner() {
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-[#0b0c0e] px-6 py-16 text-center">
-      <img
-        src={EMAIL_LOGO_URL}
+      <Image
+        src="/logo.png"
         alt="Vantage Lane"
         width={56}
         height={56}
         className="mb-4 h-14 w-14"
+        priority
       />
       <p className="mb-6 font-serif text-[11px] uppercase tracking-[0.28em] text-[#c4a574]">
         Vantage Lane
