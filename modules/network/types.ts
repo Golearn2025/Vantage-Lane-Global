@@ -51,4 +51,6 @@ export type NetworkLocationOption = {
   kind: Database["public"]["Enums"]["location_kind"];
   iata: string | null;
   countryCode: string | null;
+  lat: number | null;
+  lng: number | null;
 };

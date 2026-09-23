@@ -16,6 +16,10 @@ import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Label } from "@/shared/ui/label";
 import type { Database } from "@/shared/types/database";
+import {
+  getCoverageServiceProfile,
+  type CoverageServiceProfile,
+} from "@/modules/organizations/coverage-profile";
 
 export type CoverageDraft = {
   locationId: string;
@@ -44,6 +48,8 @@ type Props = {
   allowSecondaries?: boolean;
   /** Partner onboarding uses clearer step-by-step copy. */
   audience?: "admin" | "partner";
+  /** Drives partner copy + secondary labels (airports vs cities vs ports). */
+  serviceCode?: string | null;
 };
 
 function toDraft(
@@ -69,12 +75,14 @@ export function CoverageComposer({
   pending,
   allowSecondaries = true,
   audience = "admin",
+  serviceCode = null,
 }: Props) {
   const [primary, setPrimary] = useState<PickedLocation | null>(null);
   const [radiusKm, setRadiusKm] = useState(30);
   const [useRadius, setUseRadius] = useState(true);
   const [secondaries, setSecondaries] = useState<PickedLocation[]>([]);
   const partner = audience === "partner";
+  const profile: CoverageServiceProfile = getCoverageServiceProfile(serviceCode);
 
   const singleMode = Boolean(confirmLabel && onConfirm);
 
@@ -165,16 +173,13 @@ export function CoverageComposer({
       {!primary ? (
         <div className="space-y-2">
           <Label>
-            {partner ? "Step 1 — Primary city / area" : "Primary coverage zone"}
+            {partner ? profile.primaryLabel : "Primary coverage zone"}
           </Label>
           <FieldHint>
             {partner ? (
               <>
-                Type your main operating city (e.g. <strong>London</strong> or{" "}
-                <strong>Milan</strong>), then <strong>tap a result from the
-                list</strong>. Typing alone does nothing — you must select a
-                suggestion. After you pick it, you will set the service radius
-                and can add airports.
+                {profile.primaryHint}{" "}
+                <strong>Tap a suggestion</strong> — typing alone does nothing.
               </>
             ) : (
               <>
@@ -187,7 +192,7 @@ export function CoverageComposer({
             onPick={handlePick}
             placeholder={
               partner
-                ? "Search city, then tap a result…"
+                ? profile.primaryPlaceholder
                 : "Primary zone: London, Milan…"
             }
           />
@@ -196,10 +201,8 @@ export function CoverageComposer({
         <div className="space-y-3 rounded-md border border-border p-3">
           {partner ? (
             <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-              <strong className="text-foreground">Step 2 — Radius.</strong> Keep
-              “Draw service radius” on, then drag the slider on the map to how
-              far you normally work from this city (typically 25–50 km). Then
-              continue to airports below.
+              <strong className="text-foreground">Step 2 — Radius.</strong>{" "}
+              {profile.radiusHint}
             </p>
           ) : null}
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -271,23 +274,34 @@ export function CoverageComposer({
         <div className="space-y-2">
           <Label>
             {partner
-              ? "Step 3 — Airports you also cover (optional)"
-              : "Secondary airports / places"}
+              ? profile.secondaryLabel
+              : profile.secondaryMode === "airports"
+                ? "Secondary airports / places"
+                : profile.secondaryMode === "ports"
+                  ? "Secondary ports / marinas"
+                  : "Secondary cities / areas"}
           </Label>
           <FieldHint>
             {partner ? (
               <>
-                Search airports you serve from this base (e.g.{" "}
-                <strong>LGW</strong>, <strong>Heathrow</strong>,{" "}
-                <strong>STN</strong>) and <strong>tap each result</strong>. You
-                can add several. Skip this if you only cover the city radius.
-                When ready, press <strong>Save coverage</strong> below.
+                {profile.secondaryHint} When ready, press{" "}
+                <strong>Save coverage</strong> below.
               </>
-            ) : (
+            ) : profile.secondaryMode === "airports" ? (
               <>
                 Add airports this partner also covers (Gatwick, Stansted,
                 Luton…). They stay listed here and show as extra pins on the
                 map.
+              </>
+            ) : profile.secondaryMode === "ports" ? (
+              <>
+                Add other ports / marinas / coastal cities this partner also
+                covers.
+              </>
+            ) : (
+              <>
+                Add other cities or areas this partner also covers (not airport
+                transfers).
               </>
             )}
           </FieldHint>
@@ -296,8 +310,12 @@ export function CoverageComposer({
             onPick={handlePick}
             placeholder={
               partner
-                ? "Search airport (LGW, LHR…), then tap a result"
-                : "Add airport: LGW, STN, LTN…"
+                ? profile.secondaryPlaceholder
+                : profile.secondaryMode === "airports"
+                  ? "Add airport: LGW, STN, LTN…"
+                  : profile.secondaryMode === "ports"
+                    ? "Add port / marina / coastal city…"
+                    : "Add city or area…"
             }
           />
           {secondaries.length > 0 ? (

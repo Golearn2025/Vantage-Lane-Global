@@ -9,6 +9,7 @@ import {
   CoverageComposer,
   type CoverageBundle,
 } from "@/modules/organizations/components/coverage-composer";
+import { getCoverageServiceProfile } from "@/modules/organizations/coverage-profile";
 import {
   fetchPartnerCoverages,
   fetchPartnerOrgContext,
@@ -18,6 +19,7 @@ import {
 /**
  * Same data model as admin Add Operator coverage:
  * offering_coverages + catalog locations + optional radius_km.
+ * Copy / secondary step adapts to the partner's service (airports only for GT/Aviation).
  */
 export function PartnerCoverageForm() {
   const qc = useQueryClient();
@@ -33,6 +35,9 @@ export function PartnerCoverageForm() {
 
   const [draft, setDraft] = useState<CoverageBundle | null>(null);
   const [composerKey, setComposerKey] = useState(0);
+
+  const serviceCode = orgQ.data?.serviceCode ?? "GROUND_TRANSPORTATION";
+  const profile = getCoverageServiceProfile(serviceCode);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -94,30 +99,12 @@ export function PartnerCoverageForm() {
       </div>
 
       <ol className="space-y-2 rounded-2xl border border-border/60 bg-muted/30 px-4 py-4 text-sm">
-        <li>
-          <span className="font-semibold text-foreground">1. City</span>
-          <span className="text-muted-foreground">
-            {" "}
-            — search your main city, then <strong>tap a suggestion</strong>{" "}
-            (typing alone does nothing).
-          </span>
-        </li>
-        <li>
-          <span className="font-semibold text-foreground">2. Radius</span>
-          <span className="text-muted-foreground">
-            {" "}
-            — after the city is selected, set how far you cover on the map
-            (km).
-          </span>
-        </li>
-        <li>
-          <span className="font-semibold text-foreground">3. Airports</span>
-          <span className="text-muted-foreground">
-            {" "}
-            — optionally add airports (LGW, LHR…) the same way, then{" "}
-            <strong>Save coverage</strong>.
-          </span>
-        </li>
+        {profile.steps.map((step) => (
+          <li key={step.title}>
+            <span className="font-semibold text-foreground">{step.title}</span>
+            <span className="text-muted-foreground"> {step.body}</span>
+          </li>
+        ))}
       </ol>
 
       {existing.length > 0 && (
@@ -158,6 +145,7 @@ export function PartnerCoverageForm() {
         <CoverageComposer
           key={composerKey}
           audience="partner"
+          serviceCode={serviceCode}
           onChange={setDraft}
         />
         <Button
@@ -177,11 +165,7 @@ export function PartnerCoverageForm() {
             The Save button unlocks after you tap a city from the search
             suggestions.
           </p>
-        ) : (
-          <p className="text-center text-[11px] text-muted-foreground">
-            Adjust radius and optional airports above, then save.
-          </p>
-        )}
+        ) : null}
       </section>
     </div>
   );

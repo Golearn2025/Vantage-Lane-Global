@@ -44,6 +44,7 @@ type CatRates = {
   baseFare: string;      // fixed amount at start of trip
   perDistance: string;   // per km or per mile
   perMinute: string;     // per minute of travel time
+  hourly: string;        // as-directed / hourly hire
   minFare: string;       // minimum charge
 };
 
@@ -187,7 +188,13 @@ function PartnerGtRatesForm() {
 
     const next: Record<string, CatRates> = {};
     for (const c of catsQ.data) {
-      next[c.id] = { baseFare: "", perDistance: "", perMinute: "", minFare: "" };
+      next[c.id] = {
+        baseFare: "",
+        perDistance: "",
+        perMinute: "",
+        hourly: "",
+        minFare: "",
+      };
     }
 
     if (draftQ.data?.card) {
@@ -205,6 +212,9 @@ function PartnerGtRatesForm() {
         }
         if (rule.ruleType === "WAITING" && rule.waitUnit === "MINUTE") {
           next[id].perMinute = rule.waitAmountPerUnit?.toString() ?? "";
+        }
+        if (rule.ruleType === "HOURLY" && rule.hourlyAmount != null) {
+          next[id].hourly = rule.hourlyAmount.toString();
         }
       }
     }
@@ -237,6 +247,7 @@ function PartnerGtRatesForm() {
         baseFare: "",
         perDistance: "",
         perMinute: "",
+        hourly: "",
         minFare: "",
       };
       return {
@@ -271,7 +282,13 @@ function PartnerGtRatesForm() {
 
       const distVal = data.distance ?? 0;
       const durMins = data.durationMins ?? 0;
-      const catRates = rates[simCatId] ?? { baseFare: "", perDistance: "", perMinute: "", minFare: "" };
+      const catRates = rates[simCatId] ?? {
+        baseFare: "",
+        perDistance: "",
+        perMinute: "",
+        hourly: "",
+        minFare: "",
+      };
       const { fare, appliedMin } = computeFare(catRates, distVal, durMins);
 
       // Band comparison — only show if currency matches benchmark currency
@@ -314,6 +331,7 @@ function PartnerGtRatesForm() {
             n(r.baseFare) != null ||
             n(r.perDistance) != null ||
             n(r.perMinute) != null ||
+            n(r.hourly) != null ||
             n(r.minFare) != null,
         )
         .map(([vehicleCategoryId, r]) => ({
@@ -321,7 +339,7 @@ function PartnerGtRatesForm() {
           baseAmount: n(r.baseFare),
           perUnitAmount: n(r.perDistance),
           minimumAmount: n(r.minFare),
-          hourlyAmount: null as number | null,
+          hourlyAmount: n(r.hourly),
           dailyAmount: null as number | null,
           fixedTransferAmount: null as number | null,
           perMinuteAmount: n(r.perMinute),
@@ -329,7 +347,7 @@ function PartnerGtRatesForm() {
         }));
       if (categoryRates.length === 0) {
         throw new Error(
-          "Enter at least one rate (base, per distance, per minute, or minimum) for a category",
+          "Enter at least one rate (base, distance, minute, hourly, or minimum) for a category",
         );
       }
       return upsertPartnerRateCard({
@@ -490,31 +508,41 @@ function PartnerGtRatesForm() {
 
         <div className="divide-y divide-border/50 rounded-2xl border border-border/60 overflow-hidden bg-card">
           {/* Table header */}
-          <div className="grid grid-cols-[1fr_90px_90px_90px_90px] gap-0 px-4 py-2.5 bg-muted/40">
+          <div className="grid grid-cols-[minmax(0,1.2fr)_repeat(5,minmax(0,72px))] gap-1 px-3 py-2.5 bg-muted/40 sm:gap-0 sm:px-4 sm:grid-cols-[1fr_78px_78px_78px_78px_78px]">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Category
             </p>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
-              Base fare
+              Base
             </p>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
-              Per {distanceUnit === "MILE" ? "mile" : "km"}
+              /{distanceUnit === "MILE" ? "mi" : "km"}
             </p>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
-              Per min
+              /min
             </p>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
-              Min fare
+              /hr
+            </p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
+              Min
             </p>
           </div>
 
           {activeCats.map((cat) => {
-            const r = rates[cat.id] ?? { baseFare: "", perDistance: "", perMinute: "", minFare: "" };
+            const r = rates[cat.id] ?? {
+              baseFare: "",
+              perDistance: "",
+              perMinute: "",
+              hourly: "",
+              minFare: "",
+            };
             const isOpen = expanded[cat.id] ?? false;
             const hasAnyRate =
               n(r.baseFare) != null ||
               n(r.perDistance) != null ||
               n(r.perMinute) != null ||
+              n(r.hourly) != null ||
               n(r.minFare) != null;
 
             return (
@@ -522,7 +550,7 @@ function PartnerGtRatesForm() {
                 {/* Main row */}
                 <div
                   className={cn(
-                    "grid grid-cols-[1fr_90px_90px_90px_90px] gap-0 px-4 py-3 items-center",
+                    "grid grid-cols-[minmax(0,1.2fr)_repeat(5,minmax(0,72px))] gap-1 px-3 py-3 items-center sm:gap-0 sm:px-4 sm:grid-cols-[1fr_78px_78px_78px_78px_78px]",
                     isOpen && "bg-muted/20",
                   )}
                 >
@@ -530,7 +558,7 @@ function PartnerGtRatesForm() {
                   <button
                     type="button"
                     onClick={() => setExpanded((p) => ({ ...p, [cat.id]: !isOpen }))}
-                    className="flex items-center gap-2 text-left"
+                    className="flex items-center gap-2 text-left min-w-0"
                   >
                     <div
                       className={cn(
@@ -544,10 +572,10 @@ function PartnerGtRatesForm() {
                         <div className="h-2 w-2 rounded-full bg-border" />
                       )}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium">{cat.name}</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{cat.name}</p>
                       {cat.exampleModels && (
-                        <p className="text-[11px] text-muted-foreground">{cat.exampleModels}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">{cat.exampleModels}</p>
                       )}
                     </div>
                     {isOpen ? (
@@ -558,18 +586,26 @@ function PartnerGtRatesForm() {
                   </button>
 
                   {/* Inline inputs */}
-                  {(["baseFare", "perDistance", "perMinute", "minFare"] as const).map((field) => (
-                    <div key={field} className="pl-2">
+                  {(
+                    [
+                      "baseFare",
+                      "perDistance",
+                      "perMinute",
+                      "hourly",
+                      "minFare",
+                    ] as const
+                  ).map((field) => (
+                    <div key={field} className="sm:pl-2">
                       <div className="relative">
-                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
                           {currency.slice(0, 1)}
                         </span>
                         <Input
                           inputMode="decimal"
                           value={r[field]}
                           onChange={(e) => setField(cat.id, field, e.target.value)}
-                          className="pl-5 pr-1 text-right text-sm h-8"
-                          placeholder="0.00"
+                          className="pl-4 pr-1 text-right text-sm h-8"
+                          placeholder="0"
                         />
                       </div>
                     </div>
@@ -579,22 +615,26 @@ function PartnerGtRatesForm() {
                 {/* Expanded helper */}
                 {isOpen && (
                   <div className="border-t border-border/40 bg-muted/10 px-4 py-3">
-                    <div className="grid grid-cols-4 gap-3 text-[11px] text-muted-foreground">
+                    <div className="grid grid-cols-2 gap-3 text-[11px] text-muted-foreground sm:grid-cols-5">
                       <div>
                         <p className="font-semibold text-foreground">Base fare</p>
-                        <p>Fixed charge at the start of every trip, regardless of distance.</p>
+                        <p>Fixed charge at the start of every trip.</p>
                       </div>
                       <div>
                         <p className="font-semibold text-foreground">Per {distanceUnit === "MILE" ? "mile" : "km"}</p>
-                        <p>Amount charged for every {distanceUnit === "MILE" ? "mile" : "kilometre"} driven.</p>
+                        <p>Charged for distance driven.</p>
                       </div>
                       <div>
                         <p className="font-semibold text-foreground">Per minute</p>
-                        <p>Waiting / travel time rate. Applied to journey duration from Google Maps.</p>
+                        <p>Travel / waiting time rate from duration.</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground">Hourly</p>
+                        <p>As-directed / hourly hire rate for this category.</p>
                       </div>
                       <div>
                         <p className="font-semibold text-foreground">Min fare</p>
-                        <p>Floor price — if computed total is lower, this amount is charged instead.</p>
+                        <p>Floor price if the computed total is lower.</p>
                       </div>
                     </div>
                   </div>

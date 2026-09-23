@@ -65,5 +65,7 @@ export function mapNetworkLocation(
     kind: row.kind,
     iata: row.iata,
     countryCode: row.country_code,
+    lat: row.lat != null ? Number(row.lat) : null,
+    lng: row.lng != null ? Number(row.lng) : null,
   };
 }

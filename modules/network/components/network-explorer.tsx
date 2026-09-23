@@ -82,6 +82,14 @@ export function NetworkExplorer() {
   // Focus geocodat pentru Places search
   const [geoFocus, setGeoFocus] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
   const geoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<{
+    id: string;
+    name: string;
+    kind: string;
+    countryCode: string | null;
+    lat: number | null;
+    lng: number | null;
+  } | null>(null);
 
   const locations = useNetworkLocationSearch(qPlaces);
   const suppliers = usePlaceSuppliers(selectedLocationId || null);
@@ -95,29 +103,77 @@ export function NetworkExplorer() {
     setTimeout(() => setFlashingOrgId(null), 1800);
   }
 
-  /* Geocodare pentru Places search — cu debounce 600ms */
+  /* Geocodare Places — API server (cheia publică din browser nu e de încredere) */
   function geocodeQuery(q: string) {
     if (geoDebounceRef.current) clearTimeout(geoDebounceRef.current);
-    if (!q.trim()) { setGeoFocus(null); return; }
+    if (!q.trim()) {
+      if (!selectedPlace) setGeoFocus(null);
+      return;
+    }
     geoDebounceRef.current = setTimeout(async () => {
       try {
-        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-        if (!apiKey) return;
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q)}&key=${apiKey}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.results?.[0]) {
-          const loc = data.results[0].geometry.location;
-          // zoom diferit: țară = 5, regiune = 7, oraș = 11, stradă = 14
-          const types: string[] = data.results[0].types ?? [];
-          const zoom = types.includes("country") ? 5
-            : types.includes("administrative_area_level_1") ? 7
-            : types.includes("locality") || types.includes("postal_town") ? 11
-            : 13;
-          setGeoFocus({ lat: loc.lat, lng: loc.lng, zoom });
+        const res = await fetch(
+          `/api/places/geocode?q=${encodeURIComponent(q.trim())}`,
+        );
+        const data = (await res.json()) as {
+          result?: { lat: number; lng: number; zoom: number } | null;
+        };
+        if (data.result) {
+          setGeoFocus({
+            lat: data.result.lat,
+            lng: data.result.lng,
+            zoom: data.result.zoom,
+          });
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }, 600);
+  }
+
+  function focusFromPlace(place: {
+    kind: string;
+    lat: number | null;
+    lng: number | null;
+  }) {
+    if (place.lat == null || place.lng == null) return;
+    const zoom =
+      place.kind === "COUNTRY"
+        ? 4
+        : place.kind === "REGION"
+          ? 6
+          : place.kind === "LOCALITY"
+            ? 11
+            : 12;
+    setGeoFocus({ lat: place.lat, lng: place.lng, zoom });
+  }
+
+  function matchesSelectedPlace(org: NetworkOrganization) {
+    if (!selectedPlace) return true;
+    const code = selectedPlace.countryCode;
+    if (selectedPlace.kind === "COUNTRY" && code) {
+      return (
+        org.primaryBaseCountryCode === code || org.legalCountryCode === code
+      );
+    }
+    if (selectedPlace.kind === "LOCALITY") {
+      const needle = selectedPlace.name
+        .toLowerCase()
+        .replace(/\s+city$/i, "")
+        .trim();
+      const city = (org.primaryBaseCity ?? "").toLowerCase();
+      const label = (org.primaryBaseLabel ?? "").toLowerCase();
+      return Boolean(
+        (city && (city.includes(needle) || needle.includes(city))) ||
+          (label && label.includes(needle)),
+      );
+    }
+    if (code) {
+      return (
+        org.primaryBaseCountryCode === code || org.legalCountryCode === code
+      );
+    }
+    return true;
   }
 
   /* Map focus: focus pe org selectat, pe geocoding din Places, sau pe primul supplier */
@@ -152,19 +208,40 @@ export function NetworkExplorer() {
       orgs = orgs.filter((o) => o.serviceCode && serviceFilter.has(o.serviceCode));
     }
 
-    // Căutare text
+    // Căutare text (+ alias America/USA → US)
     if (qOps.trim()) {
-      const q = qOps.toLowerCase();
+      const q = qOps.toLowerCase().trim();
+      const countryAlias =
+        q === "america" || q === "usa" || q === "us" || q === "united states"
+          ? "US"
+          : q === "uk" || q === "britain" || q === "england"
+            ? "GB"
+            : null;
       orgs = orgs.filter((o) => {
+        if (
+          countryAlias &&
+          (o.primaryBaseCountryCode === countryAlias ||
+            o.legalCountryCode === countryAlias)
+        ) {
+          return true;
+        }
         const haystack = [
           o.displayName,
           o.primaryBaseCity,
           o.primaryBaseCountryCode,
           o.legalCountryCode,
           ...o.coverageAirportIatas,
-        ].filter(Boolean).join(" ").toLowerCase();
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
         return haystack.includes(q);
       });
+    }
+
+    // Places select: țară/oraș → arată operatorii cu baza acolo (Danny/Continental în US)
+    if (selectedPlace) {
+      orgs = orgs.filter(matchesSelectedPlace);
     }
 
     return orgs.sort((a, b) => {
@@ -173,7 +250,7 @@ export function NetworkExplorer() {
       if (rb !== ra) return rb - ra;
       return a.displayName.localeCompare(b.displayName);
     });
-  }, [networkOrgs.data, qOps, serviceFilter, statusFilter]);
+  }, [networkOrgs.data, qOps, serviceFilter, statusFilter, selectedPlace]);
 
   /* Which orgs to show as pins — filtrele de serviciu + status se aplică mereu pe hartă */
   const mapOrgs: NetworkOrganization[] = useMemo(() => {
@@ -188,19 +265,47 @@ export function NetworkExplorer() {
       base = base.filter((o) => o.serviceCode && serviceFilter.has(o.serviceCode));
     }
 
+    if (selectedPlace) {
+      base = base.filter(matchesSelectedPlace);
+    }
+
     // Dacă search text activ → intersectează cu filteredOrgs (care au și căutarea)
     if (qOps.trim()) {
       const ids = new Set(filteredOrgs.map((o) => o.organizationId));
       return base.filter((o) => ids.has(o.organizationId));
     }
 
-    // Fără search text → toți cu filtrele de serviciu/status, indiferent de places
     return base;
-  }, [networkOrgs.data, statusFilter, serviceFilter, qOps, filteredOrgs]);
+  }, [
+    networkOrgs.data,
+    statusFilter,
+    serviceFilter,
+    qOps,
+    filteredOrgs,
+    selectedPlace,
+  ]);
 
-  function selectLocation(id: string) {
+  function selectLocation(location: {
+    id: string;
+    name: string;
+    kind: string;
+    countryCode: string | null;
+    lat: number | null;
+    lng: number | null;
+  }) {
+    setSelectedPlace(location);
+    focusFromPlace(location);
+    setSidebarTab("operators");
     const params = new URLSearchParams(searchParams.toString());
-    params.set("location", id);
+    params.set("location", location.id);
+    router.replace(`${pathname}?${params.toString()}`);
+  }
+
+  function clearSelectedPlace() {
+    setSelectedPlace(null);
+    setGeoFocus(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("location");
     router.replace(`${pathname}?${params.toString()}`);
   }
 
@@ -256,6 +361,23 @@ export function NetworkExplorer() {
               Places
             </button>
           </div>
+          {selectedPlace ? (
+            <div className="mt-2 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs">
+              <span className="min-w-0 flex-1 truncate font-medium">
+                Place: {selectedPlace.name}
+                {selectedPlace.countryCode
+                  ? ` · ${selectedPlace.countryCode}`
+                  : ""}
+              </span>
+              <button
+                type="button"
+                onClick={clearSelectedPlace}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
+            </div>
+          ) : null}
         </div>
 
         {/* Sidebar content */}
@@ -393,7 +515,16 @@ export function NetworkExplorer() {
                     <button
                       key={location.id}
                       type="button"
-                      onClick={() => selectLocation(location.id)}
+                      onClick={() =>
+                        selectLocation({
+                          id: location.id,
+                          name: location.name,
+                          kind: location.kind,
+                          countryCode: location.countryCode,
+                          lat: location.lat,
+                          lng: location.lng,
+                        })
+                      }
                       className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition-colors ${
                         active ? "bg-primary/10 text-foreground" : "hover:bg-muted/60"
                       }`}
@@ -407,7 +538,9 @@ export function NetworkExplorer() {
                         ) : null}
                       </span>
                       <span className="ml-2 shrink-0 text-[11px] text-muted-foreground">
-                        {location.countryCode ?? location.kind}
+                        {location.kind === "COUNTRY"
+                          ? location.countryCode ?? "Country"
+                          : location.countryCode ?? location.kind}
                       </span>
                     </button>
                   );

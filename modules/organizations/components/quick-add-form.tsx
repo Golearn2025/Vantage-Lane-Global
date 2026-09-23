@@ -321,10 +321,18 @@ export function QuickAddOperatorForm() {
         <FormSection
           step="4"
           title="Coverage"
-          description="Primary zone (city + radius) then optional secondary airports."
+          description={
+            form.watch("service_code") === "GROUND_TRANSPORTATION" ||
+            form.watch("service_code") === "AVIATION"
+              ? "Primary zone (city + radius) then optional secondary airports."
+              : form.watch("service_code") === "YACHT"
+                ? "Primary marina / coastal city + radius, then optional other ports."
+                : "Primary city + radius, then optional extra cities (no airports)."
+          }
           optional
         >
           <CoverageComposer
+            serviceCode={form.watch("service_code")}
             onChange={(bundle) => {
               form.setValue("coverage_location_id", bundle.primary?.locationId ?? "");
               form.setValue("coverage_radius_km", bundle.primary?.radiusKm ?? null);

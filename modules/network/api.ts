@@ -16,6 +16,29 @@ export async function searchNetworkLocations(
   q: string,
 ): Promise<NetworkLocationOption[]> {
   const supabase = createClient();
+  const raw = q.trim();
+  const lower = raw.toLowerCase();
+
+  // People type "America" / "USA" expecting United States
+  const aliases: Record<string, string[]> = {
+    america: ["united states", "US"],
+    usa: ["united states", "US"],
+    us: ["united states", "US"],
+    "united states of america": ["united states", "US"],
+    uk: ["united kingdom", "GB"],
+    britain: ["united kingdom", "GB"],
+    england: ["united kingdom", "GB"],
+    dubai: ["united arab emirates", "AE"],
+    uae: ["united arab emirates", "AE"],
+    emirates: ["united arab emirates", "AE"],
+    france: ["france", "FR"],
+    germany: ["germany", "DE"],
+    switzerland: ["switzerland", "CH"],
+    holland: ["netherlands", "NL"],
+    netherlands: ["netherlands", "NL"],
+  };
+  const aliasTerms = aliases[lower] ?? [];
+
   let query = supabase
     .from("locations")
     .select("*")
@@ -23,13 +46,25 @@ export async function searchNetworkLocations(
     .order("name")
     .limit(30);
 
-  if (q.trim()) {
-    const term = `%${q.trim()}%`;
-    query = query.or(
-      `name.ilike.${term},iata.ilike.${term},icao.ilike.${term},name_normalized.ilike.${term}`,
-    );
+  if (raw) {
+    const term = `%${raw}%`;
+    const parts = [
+      `name.ilike.${term}`,
+      `iata.ilike.${term}`,
+      `icao.ilike.${term}`,
+      `name_normalized.ilike.${term}`,
+      `country_code.ilike.${term}`,
+    ];
+    for (const a of aliasTerms) {
+      if (a.length === 2) {
+        parts.push(`country_code.eq.${a}`);
+      } else {
+        parts.push(`name.ilike.%${a}%`);
+        parts.push(`name_normalized.ilike.%${a}%`);
+      }
+    }
+    query = query.or(parts.join(","));
   }
-  // fără filtru când q e gol — returnează primele 30 sortate după nume
 
   const { data, error } = await query;
   if (error) throw error;
