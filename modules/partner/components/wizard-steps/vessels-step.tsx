@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
+import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
 
 type Vessel = {
   id: string;
@@ -69,6 +70,8 @@ export function VesselsStep() {
           Declare the yachts and vessels available for charter or use.
         </p>
       </div>
+
+      <PartnerStepNotPersistedBanner label="Vessels" />
 
       <div className="space-y-4">
         {vessels.map((v, idx) => (

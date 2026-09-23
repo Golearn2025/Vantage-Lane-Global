@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
+import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
 
 const SIA_CATEGORIES = [
   { value: "close_protection", label: "Close Protection" },
@@ -64,6 +65,8 @@ export function OperativesStep() {
           accreditations.
         </p>
       </div>
+
+      <PartnerStepNotPersistedBanner label="Operatives" />
 
       <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm space-y-5">
         {/* Total operatives */}

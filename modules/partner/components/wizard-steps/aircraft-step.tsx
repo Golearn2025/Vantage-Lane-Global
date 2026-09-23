@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from "@/shared/ui/select";
 
+import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
+
 type Aircraft = {
   id: string;
   type: string;
@@ -67,6 +69,8 @@ export function AircraftStep() {
           a valid AOC.
         </p>
       </div>
+
+      <PartnerStepNotPersistedBanner label="Aircraft" />
 
       <div className="space-y-4">
         {aircraft.map((a, idx) => (

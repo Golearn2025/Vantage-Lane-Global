@@ -10,8 +10,10 @@ import {
   ExternalLink,
   Lock,
 } from "lucide-react";
-import { fetchPartnerOrgContext } from "@/modules/partner/api";
-import { createClient } from "@/shared/lib/supabase/client";
+import {
+  fetchPartnerOrgContext,
+  acknowledgePartnerStandard,
+} from "@/modules/partner/api";
 import { Button } from "@/shared/ui/button";
 import { RelationshipStatusBadge } from "@/shared/components/status-badges";
 import { cn } from "@/shared/lib/utils";
@@ -49,12 +51,10 @@ const WIZARD_STEPS: Record<string, { key: string; label: string; href: string }[
   ],
   AVIATION: [
     { key: "aircraft", label: "Declare aircraft", href: "/partner/aircraft" },
-    { key: "rates", label: "Enter rate card", href: "/partner/rates" },
     { key: "documents", label: "Upload documents", href: "/partner/documents" },
   ],
   SECURITY: [
     { key: "operatives", label: "Operatives & SIA", href: "/partner/operatives" },
-    { key: "rates", label: "Enter rate card", href: "/partner/rates" },
     { key: "documents", label: "Upload documents", href: "/partner/documents" },
   ],
   HOSPITALITY: [
@@ -68,7 +68,6 @@ const WIZARD_STEPS: Record<string, { key: string; label: string; href: string }[
   ],
   YACHT: [
     { key: "vessels", label: "Declare vessels", href: "/partner/vessels" },
-    { key: "rates", label: "Enter rate card", href: "/partner/rates" },
     { key: "documents", label: "Upload documents", href: "/partner/documents" },
   ],
   MEDICAL: [
@@ -85,11 +84,11 @@ const WIZARD_STEPS: Record<string, { key: string; label: string; href: string }[
 
 function StandardGate({
   serviceCode,
-  partnershipId,
+  organizationId,
   onAcknowledged,
 }: {
   serviceCode: string;
-  partnershipId: string;
+  organizationId: string;
   onAcknowledged: () => void;
 }) {
   const [opened, setOpened] = useState(false);
@@ -97,13 +96,7 @@ function StandardGate({
 
   const acknowledge = useMutation({
     mutationFn: async () => {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("partnerships")
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .update({ standard_acknowledged_at: new Date().toISOString() } as any)
-        .eq("id", partnershipId);
-      if (error) throw error;
+      await acknowledgePartnerStandard(organizationId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["partner", "org"] });
@@ -254,7 +247,7 @@ export function PartnerHome() {
         <>
           <StandardGate
             serviceCode={serviceCode}
-            partnershipId={org.data?.partnershipId ?? ""}
+            organizationId={org.data?.organizationId ?? ""}
             onAcknowledged={() => setJustAcknowledged(true)}
           />
 

@@ -5,6 +5,7 @@ import { Stethoscope } from "lucide-react";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
+import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
 
 const MEDICAL_SERVICES = [
   { value: "medical_escort", label: "Medical escort & accompaniment" },
@@ -38,6 +39,8 @@ export function ServicesStep() {
           Describe the medical and wellness services you provide.
         </p>
       </div>
+
+      <PartnerStepNotPersistedBanner label="Services" />
 
       <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm space-y-6">
         {/* Services offered */}

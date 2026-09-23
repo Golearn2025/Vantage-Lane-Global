@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
+import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
 
 const RESPONSE_TIME_OPTIONS = [
   { value: "1hr", label: "Within 1 hour" },
@@ -64,6 +65,8 @@ export function AvailabilityStep() {
           Set your coverage areas, response commitments, and operational hours.
         </p>
       </div>
+
+      <PartnerStepNotPersistedBanner label="Availability" />
 
       <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm space-y-5">
         {/* Cities / regions covered */}

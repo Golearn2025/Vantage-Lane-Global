@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
+import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
 
 type Property = {
   id: string;
@@ -121,6 +122,8 @@ export function PropertiesStep() {
           Add the hospitality properties you operate or represent.
         </p>
       </div>
+
+      <PartnerStepNotPersistedBanner label="Properties" />
 
       <div className="space-y-4">
         {properties.map((p, idx) => (

@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
+import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
 
 const EVENT_TYPES = [
   { value: "corporate_conferences", label: "Corporate conferences & summits" },
@@ -70,6 +71,8 @@ export function CapabilitiesStep() {
           Tell us about your events capabilities and global reach.
         </p>
       </div>
+
+      <PartnerStepNotPersistedBanner label="Capabilities" />
 
       <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm space-y-6">
         {/* Event types */}

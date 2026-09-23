@@ -59,6 +59,8 @@ export type RateRuleRow = {
   hourlyAmount: number | null;
   dailyAmount: number | null;
   amount: number | null;
+  waitAmountPerUnit: number | null;
+  waitUnit: string | null;
   notes: string | null;
 };
 
@@ -293,7 +295,7 @@ export async function fetchDraftRateCard(
   const { data: rules, error: rulesErr } = await db()
     .from("gt_rate_rules")
     .select(
-      "id, rate_card_id, rule_type, vehicle_category_id, base_amount, per_unit_amount, minimum_amount, hourly_amount, daily_amount, amount, notes",
+      "id, rate_card_id, rule_type, vehicle_category_id, base_amount, per_unit_amount, minimum_amount, hourly_amount, daily_amount, amount, wait_amount_per_unit, wait_unit, notes",
     )
     .eq("rate_card_id", cardRow.id)
     .is("archived_at", null);
@@ -321,9 +323,17 @@ export async function fetchDraftRateCard(
       hourlyAmount: r.hourly_amount != null ? Number(r.hourly_amount) : null,
       dailyAmount: r.daily_amount != null ? Number(r.daily_amount) : null,
       amount: r.amount != null ? Number(r.amount) : null,
+      waitAmountPerUnit:
+        r.wait_amount_per_unit != null ? Number(r.wait_amount_per_unit) : null,
+      waitUnit: (r.wait_unit as string) ?? null,
       notes: (r.notes as string) ?? null,
     })),
   };
+}
+
+function rateCardError(error: { message?: string; code?: string; details?: string } | null): Error {
+  const msg = [error?.message, error?.details].filter(Boolean).join(" — ");
+  return new Error(msg || "Could not save rate card");
 }
 
 export async function upsertPartnerRateCard(input: {
@@ -340,9 +350,22 @@ export async function upsertPartnerRateCard(input: {
     hourlyAmount: number | null;
     dailyAmount: number | null;
     fixedTransferAmount: number | null;
+    /** Per-minute travel rate (stored as WAITING / MINUTE). */
+    perMinuteAmount?: number | null;
     notes: string | null;
   }>;
 }): Promise<string> {
+  // Same class of bug as fleet: reject unknown / empty category IDs before insert.
+  const catalog = await fetchVehicleCategories();
+  const validCategoryIds = new Set(catalog.map((c) => c.id));
+  for (const cat of input.categoryRates) {
+    if (!cat.vehicleCategoryId || !validCategoryIds.has(cat.vehicleCategoryId)) {
+      throw new Error(
+        "One or more vehicle categories are invalid. Refresh the page and try again (same fix as fleet categories).",
+      );
+    }
+  }
+
   let cardId = input.cardId ?? null;
 
   if (cardId) {
@@ -355,7 +378,7 @@ export async function upsertPartnerRateCard(input: {
         name: "Partner draft",
       })
       .eq("id", cardId);
-    if (error) throw error;
+    if (error) throw rateCardError(error);
   } else {
     const { data, error } = await db()
       .from("gt_rate_cards")
@@ -369,7 +392,7 @@ export async function upsertPartnerRateCard(input: {
       })
       .select("id")
       .single();
-    if (error) throw error;
+    if (error) throw rateCardError(error);
     cardId = data.id as string;
   }
 
@@ -377,8 +400,14 @@ export async function upsertPartnerRateCard(input: {
     .from("gt_rate_rules")
     .delete()
     .eq("rate_card_id", cardId)
-    .in("rule_type", ["DISTANCE", "HOURLY", "DAILY", "AIRPORT_TRANSFER"]);
-  if (delErr) throw delErr;
+    .in("rule_type", [
+      "DISTANCE",
+      "HOURLY",
+      "DAILY",
+      "AIRPORT_TRANSFER",
+      "WAITING",
+    ]);
+  if (delErr) throw rateCardError(delErr);
 
   const rows: Record<string, unknown>[] = [];
   for (const cat of input.categoryRates) {
@@ -427,11 +456,23 @@ export async function upsertPartnerRateCard(input: {
         notes: "Airport ↔ city centre (partner declared)",
       });
     }
+    // Per-minute travel rate from the partner rates UI → WAITING / MINUTE
+    if (cat.perMinuteAmount != null) {
+      rows.push({
+        organization_id: input.organizationId,
+        rate_card_id: cardId,
+        rule_type: "WAITING",
+        vehicle_category_id: cat.vehicleCategoryId,
+        wait_amount_per_unit: cat.perMinuteAmount,
+        wait_unit: "MINUTE",
+        notes: "Per-minute travel rate (partner declared)",
+      });
+    }
   }
 
   if (rows.length > 0) {
     const { error: insErr } = await db().from("gt_rate_rules").insert(rows);
-    if (insErr) throw insErr;
+    if (insErr) throw rateCardError(insErr);
   }
 
   return cardId!;
@@ -741,11 +782,21 @@ export async function fetchServiceTypeConfig(
   };
 }
 
+/** Partners cannot UPDATE partnerships directly (platform-only RLS). Use RPC. */
 export async function submitForReview(organizationId: string): Promise<void> {
   const supabase = createClient();
-  const { error } = await supabase
-    .from("partnerships")
-    .update({ relationship_status: "UNDER_REVIEW" })
-    .eq("organization_id", organizationId);
+  const { error } = await supabase.rpc("rpc_partner_submit_for_review", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+}
+
+export async function acknowledgePartnerStandard(
+  organizationId: string,
+): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("rpc_partner_acknowledge_standard", {
+    p_organization_id: organizationId,
+  });
   if (error) throw error;
 }

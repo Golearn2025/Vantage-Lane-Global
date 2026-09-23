@@ -2488,6 +2488,14 @@ export type Database = {
         }
         Returns: Json
       }
+      rpc_partner_acknowledge_standard: {
+        Args: { p_organization_id: string }
+        Returns: undefined
+      }
+      rpc_partner_submit_for_review: {
+        Args: { p_organization_id: string }
+        Returns: undefined
+      }
       rpc_quick_add_operator: { Args: { p_payload: Json }; Returns: Json }
     }
     Enums: {

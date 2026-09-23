@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -145,10 +145,19 @@ export function PartnerRatesForm() {
 
   /* ── Expanded cats ── */
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [ratesDirty, setRatesDirty] = useState(false);
+  const seededCardIdRef = useRef<string | null | undefined>(undefined);
 
-  /* ── Seed from draft + fleet ── */
+  /* ── Seed from draft once per card (avoid wiping in-progress edits) ── */
   useEffect(() => {
-    if (!catsQ.data) return;
+    if (!catsQ.data || draftQ.isLoading) return;
+
+    const cardId = draftQ.data?.card?.id ?? null;
+    // Re-seed after save (new/changed card) or first load; skip while user is editing
+    if (seededCardIdRef.current === cardId && ratesDirty) return;
+    if (seededCardIdRef.current === cardId && seededCardIdRef.current !== undefined) {
+      return;
+    }
 
     const next: Record<string, CatRates> = {};
     for (const c of catsQ.data) {
@@ -168,15 +177,22 @@ export function PartnerRatesForm() {
           next[id].perDistance = rule.perUnitAmount?.toString() ?? "";
           next[id].minFare = rule.minimumAmount?.toString() ?? "";
         }
+        if (rule.ruleType === "WAITING" && rule.waitUnit === "MINUTE") {
+          next[id].perMinute = rule.waitAmountPerUnit?.toString() ?? "";
+        }
       }
     }
 
+    seededCardIdRef.current = cardId;
+    setRatesDirty(false);
     setRates(next);
-  }, [catsQ.data, draftQ.data]);
+  }, [catsQ.data, draftQ.data, draftQ.isLoading, ratesDirty]);
 
-  /* ── Derive categories that partner declared in fleet ── */
+  /* GT rates require fleet categories with valid DB UUIDs (ADR-007 catalog). */
   const fleetCatIds = new Set(
-    (fleetQ.data ?? []).map((f) => f.vehicleCategoryId).filter(Boolean),
+    (fleetQ.data ?? [])
+      .map((f) => f.vehicleCategoryId)
+      .filter((id): id is string => Boolean(id)),
   );
   const activeCats = (catsQ.data ?? []).filter((c) => fleetCatIds.has(c.id));
 
@@ -189,10 +205,19 @@ export function PartnerRatesForm() {
 
   /* ── Field updater ── */
   function setField(catId: string, field: keyof CatRates, value: string) {
-    setRates((prev) => ({
-      ...prev,
-      [catId]: { ...prev[catId], [field]: value },
-    }));
+    setRatesDirty(true);
+    setRates((prev) => {
+      const current = prev[catId] ?? {
+        baseFare: "",
+        perDistance: "",
+        perMinute: "",
+        minFare: "",
+      };
+      return {
+        ...prev,
+        [catId]: { ...current, [field]: value },
+      };
+    });
     setSimResult(null);
   }
 
@@ -257,19 +282,30 @@ export function PartnerRatesForm() {
     mutationFn: async () => {
       if (!orgQ.data) throw new Error("No organization");
       const categoryRates = Object.entries(rates)
-        .filter(([id]) => fleetCatIds.has(id))
-        .filter(([, r]) => n(r.baseFare) != null || n(r.perDistance) != null)
+        .filter(([id]) => activeCats.some((c) => c.id === id))
+        .filter(
+          ([, r]) =>
+            n(r.baseFare) != null ||
+            n(r.perDistance) != null ||
+            n(r.perMinute) != null ||
+            n(r.minFare) != null,
+        )
         .map(([vehicleCategoryId, r]) => ({
           vehicleCategoryId,
           baseAmount: n(r.baseFare),
           perUnitAmount: n(r.perDistance),
           minimumAmount: n(r.minFare),
-          hourlyAmount: null,
-          dailyAmount: null,
-          fixedTransferAmount: null,
-          notes: null,
+          hourlyAmount: null as number | null,
+          dailyAmount: null as number | null,
+          fixedTransferAmount: null as number | null,
+          perMinuteAmount: n(r.perMinute),
+          notes: null as string | null,
         }));
-      if (categoryRates.length === 0) throw new Error("Add rates for at least one category");
+      if (categoryRates.length === 0) {
+        throw new Error(
+          "Enter at least one rate (base, per distance, per minute, or minimum) for a category",
+        );
+      }
       return upsertPartnerRateCard({
         organizationId: orgQ.data.organizationId,
         offeringId: orgQ.data.offeringId,
@@ -281,6 +317,8 @@ export function PartnerRatesForm() {
     },
     onSuccess: async () => {
       toast.success("Rates saved");
+      setRatesDirty(false);
+      seededCardIdRef.current = undefined; // force re-seed from saved card
       await qc.invalidateQueries({ queryKey: ["partner", "rates"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -295,12 +333,14 @@ export function PartnerRatesForm() {
     onSuccess: async () => {
       toast.success("Rate card deleted");
       setRates({});
+      setRatesDirty(false);
+      seededCardIdRef.current = undefined;
       await qc.invalidateQueries({ queryKey: ["partner", "rates"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (orgQ.isLoading || catsQ.isLoading || fleetQ.isLoading) {
+  if (orgQ.isLoading || catsQ.isLoading || fleetQ.isLoading || draftQ.isLoading) {
     return <p className="text-sm text-muted-foreground animate-pulse">Loading rates…</p>;
   }
 
@@ -309,7 +349,8 @@ export function PartnerRatesForm() {
       <div className="rounded-2xl border border-dashed border-border/60 px-6 py-10 text-center">
         <p className="text-sm font-medium">No fleet declared yet</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Add your vehicles in the Fleet step first — rates are set per category.
+          Add your vehicles in the Fleet step first — rates are set per category
+          you declared (must match the VL vehicle catalog).
         </p>
       </div>
     );

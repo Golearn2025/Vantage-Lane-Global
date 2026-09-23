@@ -71,7 +71,9 @@ export function ReviewStep() {
                   {step.label}
                 </span>
                 <span className="ml-auto text-xs text-muted-foreground">
-                  Saved
+                  {["fleet", "rates", "documents", "profile"].includes(step.key)
+                    ? "Persisted"
+                    : "UI draft"}
                 </span>
               </li>
             ))}

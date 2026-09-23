@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
+import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
 
 const SPECIALISATIONS = [
   { value: "travel_jets", label: "Travel planning & jets" },
@@ -63,6 +64,8 @@ export function SpecialisationsStep() {
           to high-net-worth clients.
         </p>
       </div>
+
+      <PartnerStepNotPersistedBanner label="Specialisations" />
 
       <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm space-y-6">
         {/* Service specialisations */}
