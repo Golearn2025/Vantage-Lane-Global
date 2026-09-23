@@ -4,21 +4,11 @@ export const EMAIL_LOGO_URL =
 export const EMAIL_FROM_DEFAULT = "Vantage Lane Network <partnerships@vantage-lane.com>";
 export const EMAIL_REPLY_TO_DEFAULT = "partnerships@vantage-lane.com";
 
-const SERVICE_LABELS: Record<string, string> = {
-  GROUND_TRANSPORTATION: "Ground Transportation",
-  AVIATION: "Aviation",
-  SECURITY: "Security",
-  HOSPITALITY: "Hospitality",
-  CONCIERGE: "Concierge",
-  YACHT: "Yacht & Marine",
-  MEDICAL: "Medical & Wellness",
-  EVENTS: "Events",
-  PRIVATE_AVIATION: "Private Aviation",
-};
+import { networkServiceLabel } from "@/shared/lib/services";
 
 export function serviceLabel(code: string | null | undefined) {
   if (!code) return "Partner Network";
-  return SERVICE_LABELS[code] ?? code.replaceAll("_", " ");
+  return networkServiceLabel(code);
 }
 
 /** Shared dark/gold shell for transactional + outreach emails. */

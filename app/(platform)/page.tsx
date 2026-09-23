@@ -8,10 +8,24 @@ export default function OverviewPage() {
       <div>
         <h1 className="font-display text-3xl tracking-tight">Overview</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Internal ops home for the Ground Transportation network CRM.
+          Internal ops home for the global partner network CRM.
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Lead coverage</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              See inventory by country, city, and service — filter UK, London,
+              or a single service worldwide.
+            </p>
+            <Button asChild>
+              <Link href="/coverage">Open coverage</Link>
+            </Button>
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader>
             <CardTitle>Organizations</CardTitle>

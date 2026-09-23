@@ -13,6 +13,7 @@ import {
   Sun,
   Monitor,
   Send,
+  LayoutGrid,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState } from "react";
@@ -32,6 +33,7 @@ import { toast } from "sonner";
 
 const navItems = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/coverage", label: "Coverage", icon: LayoutGrid },
   { href: "/network", label: "Network", icon: MapPinned },
   { href: "/contacts", label: "Contacts", icon: ContactRound },
   { href: "/invites", label: "Invites", icon: Send },

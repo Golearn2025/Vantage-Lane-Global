@@ -22,6 +22,12 @@ export const networkKeys = {
   organizations: () => [...networkKeys.all, "organizations"] as const,
 };
 
+export const coverageKeys = {
+  all: ["coverage"] as const,
+  inventory: (filters: Record<string, unknown>) =>
+    [...coverageKeys.all, "inventory", filters] as const,
+};
+
 export const identityKeys = {
   all: ["identity"] as const,
   me: () => [...identityKeys.all, "me"] as const,
