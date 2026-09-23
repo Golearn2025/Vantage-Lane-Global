@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { requirePlatformSession } from "@/shared/lib/google/server";
-import { buildNetworkInviteEmail } from "@/emails/outreach/gt-invite";
+import { buildBookerDemandEmail } from "@/emails/outreach/vl-booker-invite";
 import {
   EMAIL_FROM_DEFAULT,
   EMAIL_REPLY_TO_DEFAULT,
@@ -15,12 +15,14 @@ type Body = {
   forceResend?: boolean;
 };
 
-type InviteLeadRow = {
+type BookerLeadRow = {
   organization_id: string;
   display_name: string | null;
   invite_email: string | null;
   contact_id: string | null;
+  contact_name: string | null;
   service_code: string | null;
+  legal_city: string | null;
   invite_accepted_at?: string | null;
   last_email_status?: string | null;
   invited_at?: string | null;
@@ -61,7 +63,7 @@ async function sendResendEmail(opts: {
       tags: [
         { name: "invitation_id", value: opts.invitationId },
         { name: "organization_id", value: opts.organizationId },
-        { name: "category", value: "network_invite" },
+        { name: "category", value: "booker_demand" },
       ],
     }),
   });
@@ -94,13 +96,13 @@ export async function POST(request: Request) {
     new Set((body.organizationIds ?? []).filter(Boolean)),
   );
   if (organizationIds.length === 0) {
-    return NextResponse.json({ error: "Select at least one lead" }, { status: 400 });
+    return NextResponse.json({ error: "Select at least one booker" }, { status: 400 });
   }
   if (organizationIds.length > 50) {
-    return NextResponse.json({ error: "Max 50 invites per batch" }, { status: 400 });
+    return NextResponse.json({ error: "Max 50 emails per batch" }, { status: 400 });
   }
 
-  const serviceCode = (body.serviceCode || "GROUND_TRANSPORTATION").toUpperCase();
+  const serviceCode = (body.serviceCode || "HOSPITALITY").toUpperCase();
   const origin =
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
     new URL(request.url).origin;
@@ -109,9 +111,9 @@ export async function POST(request: Request) {
   const skipAlready = body.skipAlreadyInvited === true;
   const forceResend = body.forceResend === true;
   const { data: leadRows, error: viewErr } = await db
-    .from<InviteLeadRow>("v_invite_leads")
+    .from<BookerLeadRow>("v_booker_leads")
     .select(
-      "organization_id, display_name, invite_email, contact_id, service_code, invite_accepted_at, last_email_status, invited_at",
+      "organization_id, display_name, invite_email, contact_id, contact_name, service_code, legal_city, invite_accepted_at, last_email_status, invited_at",
     )
     .in("organization_id", organizationIds);
 
@@ -127,7 +129,7 @@ export async function POST(request: Request) {
     skipped?: boolean;
   }> = [];
 
-  for (const lead of (leadRows as InviteLeadRow[] | null) ?? []) {
+  for (const lead of (leadRows as BookerLeadRow[] | null) ?? []) {
     if (skipAlready && !forceResend) {
       const status = (lead.last_email_status || "").toLowerCase();
       const already =
@@ -157,9 +159,9 @@ export async function POST(request: Request) {
 
     const token = randomBytes(24).toString("hex");
     const tokenHash = hashToken(token);
-    const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const inviteService = lead.service_code || serviceCode;
-    const inviteUrl = `${origin}/join?invite=${token}`;
+    const interestUrl = `${origin}/interest?invite=${token}`;
 
     const { data: invitation, error: invErr } = await db
       .from<InvitationRow>("organization_invitations")
@@ -171,7 +173,7 @@ export async function POST(request: Request) {
         expires_at: expiresAt,
         invited_by_user_id: auth.user.id,
         service_code: inviteService,
-        invite_kind: "partner",
+        invite_kind: "booker",
         last_email_status: "queued",
       })
       .select("id")
@@ -187,10 +189,11 @@ export async function POST(request: Request) {
     }
 
     try {
-      const mail = buildNetworkInviteEmail({
-        organizationName: lead.display_name || "Partner",
-        serviceCode: inviteService,
-        inviteUrl,
+      const mail = buildBookerDemandEmail({
+        organizationName: lead.display_name || "Team",
+        contactName: lead.contact_name,
+        interestUrl,
+        cityHint: lead.legal_city,
       });
       const resendId = await sendResendEmail({
         to: email,
@@ -214,13 +217,14 @@ export async function POST(request: Request) {
         channel: "EMAIL",
         action_type: "SENT_EMAIL",
         subject: mail.subject,
-        body_snapshot: inviteUrl,
+        body_snapshot: interestUrl,
         actor_user_id: auth.user.id,
         metadata: {
           resend_id: resendId,
           invitation_id: invitation.id,
           service_code: inviteService,
-          invite_url: inviteUrl,
+          interest_url: interestUrl,
+          invite_kind: "booker",
         },
       });
 

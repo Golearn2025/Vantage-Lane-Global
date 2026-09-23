@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
+  Briefcase,
   ContactRound,
   LayoutDashboard,
   LogOut,
@@ -37,6 +38,7 @@ const navItems = [
   { href: "/network", label: "Network", icon: MapPinned },
   { href: "/contacts", label: "Contacts", icon: ContactRound },
   { href: "/invites", label: "Invites", icon: Send },
+  { href: "/bookers", label: "Bookers", icon: Briefcase },
   { href: "/organizations", label: "Organizations", icon: Building2 },
 ];
 
