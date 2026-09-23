@@ -10,6 +10,10 @@ export const organizationsKeys = {
   coverage: (id: string) => [...organizationsKeys.detail(id), "coverage"] as const,
   activities: (id: string) =>
     [...organizationsKeys.detail(id), "activities"] as const,
+  fleet: (id: string) => [...organizationsKeys.detail(id), "fleet"] as const,
+  pricing: (id: string) => [...organizationsKeys.detail(id), "pricing"] as const,
+  documents: (id: string) =>
+    [...organizationsKeys.detail(id), "documents"] as const,
   locationsCatalog: (q: string) =>
     [...organizationsKeys.all, "locations-catalog", q] as const,
 };

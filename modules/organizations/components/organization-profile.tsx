@@ -16,10 +16,14 @@ import {
   useOrganizationBases,
   useOrganizationContacts,
   useOrganizationCoverage,
+  useOrganizationDocuments,
+  useOrganizationFleet,
   useOrganizationOverview,
+  useOrganizationRateCards,
   useUpsertBase,
   useUpsertContact,
 } from "@/modules/organizations/hooks";
+import { createDocumentSignedUrl } from "@/modules/organizations/api";
 import { useOrganizationProfileRealtime } from "@/modules/organizations/realtime";
 import {
   OperationalStatusBadge,
@@ -95,6 +99,9 @@ export function OrganizationProfile({
   const contacts = useOrganizationContacts(organizationId);
   const bases = useOrganizationBases(organizationId);
   const coverage = useOrganizationCoverage(organizationId);
+  const fleet = useOrganizationFleet(organizationId);
+  const rateCards = useOrganizationRateCards(organizationId);
+  const documents = useOrganizationDocuments(organizationId);
   const activities = useOrganizationActivities(organizationId);
   const logCommunication = useLogCommunication(organizationId);
   const changeStatus = useChangeRelationshipStatus(organizationId);
@@ -351,9 +358,21 @@ export function OrganizationProfile({
                 { value: "overview", label: "Overview" },
                 { value: "contacts", label: "Contacts" },
                 { value: "coverage", label: "Coverage", count: org.coverageCount },
-                { value: "fleet", label: "Fleet", soon: true },
-                { value: "pricing", label: "Pricing", soon: true },
-                { value: "documents", label: "Documents", soon: true },
+                {
+                  value: "fleet",
+                  label: "Fleet",
+                  count: fleet.data?.length ?? 0,
+                },
+                {
+                  value: "pricing",
+                  label: "Pricing",
+                  count: rateCards.data?.reduce((n, c) => n + c.rules.length, 0) ?? 0,
+                },
+                {
+                  value: "documents",
+                  label: "Documents",
+                  count: documents.data?.length ?? 0,
+                },
                 { value: "standards", label: "Standards", soon: true },
                 { value: "activity", label: "Activity" },
               ] as const
@@ -731,31 +750,192 @@ export function OrganizationProfile({
           )}
         </TabsContent>
 
-        {/* ── Fleet ── */}
+        {/* ── Fleet (partner-declared) ── */}
         <TabsContent value="fleet" className="mt-4">
-          <ComingSoonPlaceholder
-            icon={<Car className="h-8 w-8" />}
-            title="Fleet"
-            description="Vehicle categories, quantities, year and quality hints. Needed before this operator can receive jobs."
-          />
+          {fleet.isLoading ? (
+            <Skeleton className="h-24 w-full rounded-xl" />
+          ) : (fleet.data ?? []).length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border py-10 text-center">
+              <p className="text-sm text-muted-foreground">
+                No fleet declared yet — partner has not saved vehicles in onboarding.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border">
+              <div className="grid grid-cols-[1.2fr_1fr_1fr_70px_90px] gap-2 border-b border-border bg-muted/40 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <span>Category</span>
+                <span>Make / model</span>
+                <span>Years</span>
+                <span className="text-right">Qty</span>
+                <span className="text-right">Status</span>
+              </div>
+              {(fleet.data ?? []).map((row, idx, arr) => (
+                <div
+                  key={row.id}
+                  className={`grid grid-cols-[1.2fr_1fr_1fr_70px_90px] gap-2 px-4 py-3 text-sm ${
+                    idx < arr.length - 1 ? "border-b border-border" : ""
+                  }`}
+                >
+                  <div>
+                    <p className="font-medium">{row.categoryName ?? "Category"}</p>
+                    {row.categoryCode ? (
+                      <p className="text-[11px] text-muted-foreground">{row.categoryCode}</p>
+                    ) : null}
+                  </div>
+                  <p className="text-muted-foreground">
+                    {[row.make, row.modelFamily].filter(Boolean).join(" ") || "—"}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {row.yearFrom ?? "—"}
+                    {row.yearTo && row.yearTo !== row.yearFrom ? `–${row.yearTo}` : ""}
+                  </p>
+                  <p className="text-right font-medium">{row.quantity}</p>
+                  <p className="text-right text-xs text-muted-foreground">
+                    {row.complianceStatus.replace(/_/g, " ")}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
-        {/* ── Pricing ── */}
-        <TabsContent value="pricing" className="mt-4">
-          <ComingSoonPlaceholder
-            icon={<Tag className="h-8 w-8" />}
-            title="Pricing"
-            description="Fixed transfers, airport transfers, distance-based rates, hourly / daily, surcharges. Rate card per vehicle category and currency."
-          />
+        {/* ── Pricing (partner rate cards) ── */}
+        <TabsContent value="pricing" className="mt-4 space-y-4">
+          {rateCards.isLoading ? (
+            <Skeleton className="h-24 w-full rounded-xl" />
+          ) : (rateCards.data ?? []).length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border py-10 text-center">
+              <p className="text-sm text-muted-foreground">
+                No rate card yet — partner has not saved pricing.
+              </p>
+            </div>
+          ) : (
+            (rateCards.data ?? []).map((card) => (
+              <div
+                key={card.id}
+                className="overflow-hidden rounded-xl border border-border"
+              >
+                <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-4 py-2.5">
+                  <p className="text-sm font-semibold">
+                    {card.name ?? "Rate card"} · {card.currencyCode} ·{" "}
+                    {card.distanceUnit}
+                  </p>
+                  <Badge variant="outline" className="text-[10px]">
+                    {card.status}
+                  </Badge>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {card.rules.length} rule{card.rules.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                {card.rules.length === 0 ? (
+                  <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                    Card exists but has no rules.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {card.rules.map((rule) => (
+                      <li key={rule.id} className="px-4 py-3 text-sm">
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                          <span className="font-medium">
+                            {rule.categoryName ?? "Service-level"}
+                          </span>
+                          <Badge variant="muted" className="text-[10px]">
+                            {rule.ruleType}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {[
+                            rule.baseAmount != null
+                              ? `base ${card.currencyCode} ${rule.baseAmount}`
+                              : null,
+                            rule.perUnitAmount != null
+                              ? `${card.currencyCode} ${rule.perUnitAmount}/${rule.distanceUnit ?? card.distanceUnit}`
+                              : null,
+                            rule.minimumAmount != null
+                              ? `min ${card.currencyCode} ${rule.minimumAmount}`
+                              : null,
+                            rule.hourlyAmount != null
+                              ? `hourly ${card.currencyCode} ${rule.hourlyAmount}`
+                              : null,
+                            rule.dailyAmount != null
+                              ? `daily ${card.currencyCode} ${rule.dailyAmount}`
+                              : null,
+                            rule.amount != null
+                              ? `fixed ${card.currencyCode} ${rule.amount}`
+                              : null,
+                            rule.waitAmountPerUnit != null
+                              ? `${card.currencyCode} ${rule.waitAmountPerUnit}/${rule.waitUnit ?? "min"}`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "—"}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))
+          )}
         </TabsContent>
 
-        {/* ── Documents ── */}
+        {/* ── Documents (partner uploads) ── */}
         <TabsContent value="documents" className="mt-4">
-          <ComingSoonPlaceholder
-            icon={<FileText className="h-8 w-8" />}
-            title="Documents"
-            description="Insurance, licences, vehicle age certs, airport permits. Records + files with expiry warnings."
-          />
+          {documents.isLoading ? (
+            <Skeleton className="h-24 w-full rounded-xl" />
+          ) : (documents.data ?? []).length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border py-10 text-center">
+              <p className="text-sm text-muted-foreground">
+                No documents uploaded yet.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border">
+              {(documents.data ?? []).map((doc, idx, arr) => (
+                <div
+                  key={doc.id}
+                  className={`flex flex-wrap items-center gap-3 px-4 py-3 ${
+                    idx < arr.length - 1 ? "border-b border-border" : ""
+                  }`}
+                >
+                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {doc.documentTypeName ?? doc.documentTypeCode ?? "Document"}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {doc.fileName ?? "—"}
+                      {doc.expiresOn ? ` · expires ${doc.expiresOn}` : ""}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px]">
+                    {doc.verificationStatus}
+                  </Badge>
+                  {doc.storagePath ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 text-xs"
+                      onClick={async () => {
+                        try {
+                          const url = await createDocumentSignedUrl(doc.storagePath!);
+                          if (!url) throw new Error("Could not open file");
+                          window.open(url, "_blank", "noopener,noreferrer");
+                        } catch (e) {
+                          toast.error(
+                            e instanceof Error ? e.message : "Could not open file",
+                          );
+                        }
+                      }}
+                    >
+                      Open
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         {/* ── Standards ── */}

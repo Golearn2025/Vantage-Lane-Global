@@ -158,6 +158,59 @@ export type OrganizationActivity = {
   occurredAt: string;
 };
 
+export type OrganizationFleetRow = {
+  id: string;
+  vehicleCategoryId: string;
+  categoryCode: string | null;
+  categoryName: string | null;
+  make: string | null;
+  modelFamily: string | null;
+  yearFrom: number | null;
+  yearTo: number | null;
+  quantity: number;
+  complianceStatus: string;
+  declarationStatus: string;
+};
+
+export type OrganizationRateRuleRow = {
+  id: string;
+  ruleType: string;
+  vehicleCategoryId: string | null;
+  categoryCode: string | null;
+  categoryName: string | null;
+  baseAmount: number | null;
+  perUnitAmount: number | null;
+  minimumAmount: number | null;
+  hourlyAmount: number | null;
+  dailyAmount: number | null;
+  amount: number | null;
+  waitAmountPerUnit: number | null;
+  waitUnit: string | null;
+  distanceUnit: string | null;
+  notes: string | null;
+};
+
+export type OrganizationRateCardRow = {
+  id: string;
+  name: string | null;
+  currencyCode: string;
+  distanceUnit: string;
+  status: string;
+  rules: OrganizationRateRuleRow[];
+};
+
+export type OrganizationDocumentRow = {
+  id: string;
+  fileName: string | null;
+  documentTypeCode: string | null;
+  documentTypeName: string | null;
+  verificationStatus: string;
+  expiresOn: string | null;
+  issuedOn: string | null;
+  storagePath: string | null;
+  createdAt: string;
+};
+
 export type LocationCatalogItem = {
   id: string;
   name: string;

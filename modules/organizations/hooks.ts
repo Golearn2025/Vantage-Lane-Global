@@ -7,7 +7,10 @@ import {
   fetchOrganizationBases,
   fetchOrganizationContacts,
   fetchOrganizationCoverage,
+  fetchOrganizationDocuments,
+  fetchOrganizationFleet,
   fetchOrganizationOverview,
+  fetchOrganizationRateCards,
   fetchOrganizationSummaries,
   quickAddOperator,
   searchLocationsCatalog,
@@ -63,6 +66,30 @@ export function useOrganizationActivities(organizationId: string) {
   return useQuery({
     queryKey: organizationsKeys.activities(organizationId),
     queryFn: () => fetchOrganizationActivities(organizationId),
+    enabled: Boolean(organizationId),
+  });
+}
+
+export function useOrganizationFleet(organizationId: string) {
+  return useQuery({
+    queryKey: organizationsKeys.fleet(organizationId),
+    queryFn: () => fetchOrganizationFleet(organizationId),
+    enabled: Boolean(organizationId),
+  });
+}
+
+export function useOrganizationRateCards(organizationId: string) {
+  return useQuery({
+    queryKey: organizationsKeys.pricing(organizationId),
+    queryFn: () => fetchOrganizationRateCards(organizationId),
+    enabled: Boolean(organizationId),
+  });
+}
+
+export function useOrganizationDocuments(organizationId: string) {
+  return useQuery({
+    queryKey: organizationsKeys.documents(organizationId),
+    queryFn: () => fetchOrganizationDocuments(organizationId),
     enabled: Boolean(organizationId),
   });
 }
