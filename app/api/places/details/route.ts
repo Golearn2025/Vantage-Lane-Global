@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   getGoogleMapsServerKey,
-  requirePlatformSession,
+  requireAuthenticatedSession,
 } from "@/shared/lib/google/server";
 
 type PlaceDetailsResponse = {
@@ -52,7 +52,7 @@ function extractIataFromName(name: string) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requirePlatformSession();
+  const auth = await requireAuthenticatedSession();
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

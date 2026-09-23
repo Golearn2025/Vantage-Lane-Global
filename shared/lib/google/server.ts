@@ -8,7 +8,8 @@ export function getGoogleMapsServerKey() {
   );
 }
 
-export async function requirePlatformSession() {
+/** Any logged-in user (platform staff or partner). */
+export async function requireAuthenticatedSession() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -16,9 +17,17 @@ export async function requirePlatformSession() {
   if (!user) {
     return { ok: false as const, status: 401, error: "Not authenticated" };
   }
-  const { data: isPlatform } = await supabase.rpc("is_platform_user");
+  return { ok: true as const, supabase, user };
+}
+
+/** Platform staff only (CRM / admin APIs). */
+export async function requirePlatformSession() {
+  const auth = await requireAuthenticatedSession();
+  if (!auth.ok) return auth;
+
+  const { data: isPlatform } = await auth.supabase.rpc("is_platform_user");
   if (!isPlatform) {
     return { ok: false as const, status: 403, error: "Platform access required" };
   }
-  return { ok: true as const, supabase, user };
+  return { ok: true as const, supabase: auth.supabase, user: auth.user };
 }
