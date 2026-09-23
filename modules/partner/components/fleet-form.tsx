@@ -27,6 +27,7 @@ import { cn } from "@/shared/lib/utils";
 
 /* ─── VL Categories ─────────────────────────────────────────── */
 
+/** Codes MUST match public.vehicle_categories (ADR-007). */
 const VL_CATEGORIES = [
   {
     code: "EXECUTIVE_SEDAN",
@@ -37,32 +38,38 @@ const VL_CATEGORIES = [
   {
     code: "LUXURY_SEDAN",
     label: "Luxury Sedan",
-    description: "First-class saloon — up to 3 pax, full privacy",
-    examples: "Mercedes S-Class, BMW 7 Series / i7, Audi A8",
+    description: "First-class saloon — up to 3 pax (incl. Maybach / RR / Bentley)",
+    examples: "Mercedes S-Class, BMW 7 / i7, Maybach, Ghost, Flying Spur",
   },
   {
-    code: "ULTRA_LUXURY_SEDAN",
-    label: "Ultra-Luxury Sedan",
-    description: "Hand-crafted flagship — up to 3 pax",
-    examples: "Mercedes-Maybach S-Class, Rolls-Royce Ghost / Phantom, Bentley Flying Spur",
-  },
-  {
-    code: "PREMIUM_SUV",
-    label: "Premium SUV",
+    code: "LUXURY_SUV",
+    label: "Luxury SUV",
     description: "Luxury SUV — up to 4 pax, 3+ large cases",
-    examples: "Range Rover, BMW X7, Mercedes GLS, Cadillac Escalade",
+    examples: "Range Rover, Escalade, GLS, Cullinan, Bentayga",
   },
   {
-    code: "ULTRA_LUXURY_SUV",
-    label: "Ultra-Luxury SUV",
-    description: "Ultra-premium SUV — up to 4 pax",
-    examples: "Rolls-Royce Cullinan, Bentley Bentayga, Mercedes-Maybach GLS",
+    code: "LUXURY_MPV",
+    label: "Luxury MPV",
+    description: "Premium people carrier — up to 7 pax",
+    examples: "Mercedes V-Class, EQV, Toyota Granvia",
   },
   {
-    code: "LUXURY_VAN",
-    label: "Luxury Van / MPV",
-    description: "Premium people carrier — up to 7 pax, 6 large cases",
-    examples: "Mercedes V-Class, EQV, Toyota Granvia, Vito",
+    code: "EXECUTIVE_VAN",
+    label: "Executive Van / Sprinter",
+    description: "Executive van / Sprinter VIP",
+    examples: "Mercedes Sprinter VIP, Vito Tourer",
+  },
+  {
+    code: "MINIBUS",
+    label: "Minibus",
+    description: "Small group transfers",
+    examples: "Mercedes Sprinter Minibus, Ford Transit",
+  },
+  {
+    code: "COACH",
+    label: "Coach",
+    description: "Larger group / coach",
+    examples: "Coach / tour bus",
   },
 ] as const;
 
@@ -81,42 +88,50 @@ const MAKES_BY_CATEGORY: Record<VLCategoryCode, { make: string; models: string[]
     { make: "Jaguar", models: ["XF"] },
   ],
   LUXURY_SEDAN: [
-    { make: "Mercedes-Benz", models: ["S-Class (W223)", "S-Class (W222)"] },
-    { make: "BMW", models: ["7 Series (G70)", "7 Series (G11/G12)", "i7"] },
+    { make: "Mercedes-Benz", models: ["S-Class (W223)", "S-Class (W222)", "Maybach S-Class", "Maybach S 680", "Maybach S 580"] },
+    { make: "BMW", models: ["7 Series (G70)", "7 Series (G11/G12)", "i7", "i7 M70 xDrive"] },
     { make: "Audi", models: ["A8 L", "A8"] },
     { make: "Lexus", models: ["LS 500h", "LS 500"] },
     { make: "Tesla", models: ["Model S"] },
     { make: "Genesis", models: ["G90"] },
     { make: "Jaguar", models: ["XJ"] },
-  ],
-  ULTRA_LUXURY_SEDAN: [
-    { make: "Mercedes-Benz", models: ["Maybach S-Class", "Maybach S 680", "Maybach S 580"] },
     { make: "Rolls-Royce", models: ["Ghost", "Ghost Extended", "Phantom", "Phantom Extended"] },
     { make: "Bentley", models: ["Flying Spur", "Flying Spur Hybrid", "Mulsanne"] },
-    { make: "BMW", models: ["i7 M70 xDrive"] },
   ],
-  PREMIUM_SUV: [
+  LUXURY_SUV: [
     { make: "Range Rover", models: ["Range Rover LWB Autobiography", "Range Rover Autobiography", "Range Rover Sport"] },
     { make: "BMW", models: ["X5", "X7"] },
-    { make: "Mercedes-Benz", models: ["GLS 580", "GLS 450", "GLE"] },
+    { make: "Mercedes-Benz", models: ["GLS 580", "GLS 450", "GLE", "Maybach GLS 600"] },
     { make: "Audi", models: ["Q7", "Q8"] },
     { make: "Cadillac", models: ["Escalade", "Escalade ESV"] },
     { make: "Tesla", models: ["Model X"] },
     { make: "Volvo", models: ["XC90"] },
     { make: "Porsche", models: ["Cayenne", "Cayenne Turbo"] },
     { make: "Lexus", models: ["LX 600", "RX 500h"] },
-  ],
-  ULTRA_LUXURY_SUV: [
     { make: "Rolls-Royce", models: ["Cullinan", "Cullinan Series II"] },
     { make: "Bentley", models: ["Bentayga", "Bentayga EWB", "Bentayga Hybrid"] },
-    { make: "Mercedes-Benz", models: ["Maybach GLS 600"] },
     { make: "Lamborghini", models: ["Urus"] },
   ],
-  LUXURY_VAN: [
-    { make: "Mercedes-Benz", models: ["V-Class Extra Long", "V-Class Long", "EQV 300", "Vito Tourer", "Sprinter VIP"] },
+  LUXURY_MPV: [
+    { make: "Mercedes-Benz", models: ["V-Class Extra Long", "V-Class Long", "EQV 300"] },
     { make: "Toyota", models: ["Granvia", "Alphard"] },
     { make: "Volkswagen", models: ["Multivan", "Caravelle"] },
     { make: "Ford", models: ["Tourneo Custom", "Tourneo Connect"] },
+  ],
+  EXECUTIVE_VAN: [
+    { make: "Mercedes-Benz", models: ["Sprinter VIP", "Vito Tourer", "Sprinter"] },
+    { make: "Volkswagen", models: ["Crafter"] },
+    { make: "Ford", models: ["Transit"] },
+  ],
+  MINIBUS: [
+    { make: "Mercedes-Benz", models: ["Sprinter Minibus"] },
+    { make: "Ford", models: ["Transit Minibus"] },
+    { make: "Volkswagen", models: ["Crafter Minibus"] },
+  ],
+  COACH: [
+    { make: "Mercedes-Benz", models: ["Tourismo", "Travego"] },
+    { make: "Setra", models: ["ComfortClass", "TopClass"] },
+    { make: "Volvo", models: ["9700", "9900"] },
   ],
 };
 
