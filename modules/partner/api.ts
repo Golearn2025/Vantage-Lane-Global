@@ -234,6 +234,7 @@ export async function updatePartnerHQLocation(input: {
     lat: input.lat,
     lng: input.lng,
     place_id: input.placeId,
+    google_place_id: input.placeId,
     label: input.formattedAddress || `${input.city} base`,
     location_kind: "OPS_BASE" as const,
     is_primary: true,

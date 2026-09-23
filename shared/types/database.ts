@@ -2496,6 +2496,10 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: undefined
       }
+      rpc_ensure_location_from_google_place: {
+        Args: { p_payload: Json }
+        Returns: Database["public"]["Tables"]["locations"]["Row"]
+      }
       rpc_quick_add_operator: { Args: { p_payload: Json }; Returns: Json }
     }
     Enums: {

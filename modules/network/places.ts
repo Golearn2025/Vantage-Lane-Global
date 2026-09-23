@@ -54,7 +54,25 @@ async function applyGoogleCoords(
   locationId: string,
   place: GooglePlaceDetails,
 ): Promise<LocationRow> {
+  // Prefer ensure RPC so partners (no platform.catalog.manage) can enrich coords
   const supabase = createClient();
+  const { data: viaRpc, error: rpcErr } = await supabase.rpc(
+    "rpc_ensure_location_from_google_place",
+    {
+      p_payload: {
+        google_place_id: place.googlePlaceId,
+        name: place.name,
+        kind: place.kind,
+        country_code: place.countryCode,
+        iata: place.iata,
+        lat: place.lat,
+        lng: place.lng,
+        formatted_address: place.formattedAddress,
+      },
+    },
+  );
+  if (!rpcErr && viaRpc) return viaRpc as LocationRow;
+
   const { data, error } = await supabase
     .from("locations")
     .update({
@@ -141,6 +159,25 @@ export async function upsertLocationFromGooglePlace(
 ) {
   const supabase = createClient();
 
+  // SECURITY DEFINER RPC — partners can seed catalog rows for coverage matching
+  const { data: ensured, error: rpcErr } = await supabase.rpc(
+    "rpc_ensure_location_from_google_place",
+    {
+      p_payload: {
+        google_place_id: place.googlePlaceId,
+        name: place.name,
+        kind: place.kind,
+        country_code: place.countryCode,
+        iata: place.iata,
+        lat: place.lat,
+        lng: place.lng,
+        formatted_address: place.formattedAddress,
+      },
+    },
+  );
+  if (!rpcErr && ensured) return ensured as LocationRow;
+
+  // Fallback for older deploys / platform staff with catalog.manage
   const { data: existing, error: existingError } = await supabase
     .from("locations")
     .select("*")
@@ -183,7 +220,6 @@ export async function upsertLocationFromGooglePlace(
     }
   }
 
-  // Match seeded cities like London / Manchester by name + country + kind
   if (place.kind === "LOCALITY" || place.kind === "REGION" || place.kind === "COUNTRY") {
     let byNameQuery = supabase
       .from("locations")
@@ -201,6 +237,8 @@ export async function upsertLocationFromGooglePlace(
       return applyGoogleCoords(byName.id, place);
     }
   }
+
+  if (rpcErr) throw rpcErr;
 
   const { data: created, error } = await supabase
     .from("locations")
