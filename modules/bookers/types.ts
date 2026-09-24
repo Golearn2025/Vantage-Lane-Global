@@ -14,6 +14,11 @@ export type BookerLead = {
   openedAt: string | null;
   clickedAt: string | null;
   isTest: boolean;
+  primaryBaseLabel: string | null;
+  primaryBaseCity: string | null;
+  primaryBaseAddress: string | null;
+  primaryBaseLat: number | null;
+  primaryBaseLng: number | null;
 };
 
 export type BookerStatus =

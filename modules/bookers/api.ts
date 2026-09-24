@@ -18,6 +18,11 @@ type BookerLeadRow = {
   opened_at: string | null;
   clicked_at: string | null;
   is_test: boolean | null;
+  primary_base_label: string | null;
+  primary_base_city: string | null;
+  primary_base_address: string | null;
+  primary_base_lat: number | string | null;
+  primary_base_lng: number | string | null;
 };
 
 export async function listBookerLeads(filters?: {
@@ -29,7 +34,7 @@ export async function listBookerLeads(filters?: {
   let query = looseDb(supabase)
     .from<BookerLeadRow>("v_booker_leads")
     .select(
-      "organization_id, display_name, legal_country_code, legal_city, service_code, service_name, invite_email, contact_name, invited_at, invite_accepted_at, converted_organization_id, last_email_status, opened_at, clicked_at, is_test",
+      "organization_id, display_name, legal_country_code, legal_city, service_code, service_name, invite_email, contact_name, invited_at, invite_accepted_at, converted_organization_id, last_email_status, opened_at, clicked_at, is_test, primary_base_label, primary_base_city, primary_base_address, primary_base_lat, primary_base_lng",
     )
     .order("created_at", { ascending: false });
 
@@ -70,6 +75,13 @@ export async function listBookerLeads(filters?: {
     openedAt: r.opened_at,
     clickedAt: r.clicked_at,
     isTest: Boolean(r.is_test),
+    primaryBaseLabel: r.primary_base_label,
+    primaryBaseCity: r.primary_base_city,
+    primaryBaseAddress: r.primary_base_address,
+    primaryBaseLat:
+      r.primary_base_lat == null ? null : Number(r.primary_base_lat),
+    primaryBaseLng:
+      r.primary_base_lng == null ? null : Number(r.primary_base_lng),
   }));
 }
 
