@@ -38,59 +38,154 @@ export type OrganizationListFilters = {
   country?: string | "all";
   testFilter?: "all" | "test" | "real";
   includeArchived?: boolean;
+  /** 0-based page index; when set with pageSize, applies view range pagination */
+  pageIndex?: number;
+  pageSize?: number;
+  sortBy?:
+    | "displayName"
+    | "createdAt"
+    | "lastActivityAt"
+    | "relationshipStatus"
+    | "operationalStatus";
+  sortDesc?: boolean;
 };
 
-export async function fetchOrganizationSummaries(
-  filters: OrganizationListFilters = {},
-): Promise<OrganizationSummary[]> {
-  const supabase = createClient();
-  let query = supabase.from("v_organization_summary").select("*");
+export type OrganizationSummaryPage = {
+  rows: OrganizationSummary[];
+  totalCount: number;
+};
+
+const SORT_COLUMN: Record<
+  NonNullable<OrganizationListFilters["sortBy"]>,
+  string
+> = {
+  displayName: "display_name",
+  createdAt: "created_at",
+  lastActivityAt: "last_activity_at",
+  relationshipStatus: "relationship_status",
+  operationalStatus: "operational_status",
+};
+
+/** Escape for PostgREST double-quoted filter values + ILIKE literals. */
+function escapeIlikeQuoted(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/[%_]/g, "\\$&");
+}
+
+type SummaryFilterQuery = {
+  is: (column: string, value: null) => SummaryFilterQuery;
+  eq: (column: string, value: string | boolean) => SummaryFilterQuery;
+  or: (filters: string) => SummaryFilterQuery;
+};
+
+function applyOrganizationSummaryFilters<T extends SummaryFilterQuery>(
+  query: T,
+  filters: OrganizationListFilters,
+): T {
+  let next = query;
 
   if (!filters.includeArchived) {
-    query = query.is("archived_at", null);
+    next = next.is("archived_at", null) as T;
   }
 
   if (filters.relationshipStatus && filters.relationshipStatus !== "all") {
-    query = query.eq("relationship_status", filters.relationshipStatus);
+    next = next.eq("relationship_status", filters.relationshipStatus) as T;
   }
   if (filters.operationalStatus && filters.operationalStatus !== "all") {
-    query = query.eq("operational_status", filters.operationalStatus);
+    next = next.eq("operational_status", filters.operationalStatus) as T;
   }
   if (filters.country && filters.country !== "all") {
-    query = query.eq("legal_country_code", filters.country);
+    next = next.eq("legal_country_code", filters.country) as T;
   }
   if (filters.testFilter === "test") {
-    query = query.eq("is_test", true);
+    next = next.eq("is_test", true) as T;
   } else if (filters.testFilter === "real") {
-    query = query.eq("is_test", false);
+    next = next.eq("is_test", false) as T;
   }
 
-  const { data, error } = await query.order("display_name", { ascending: true });
+  const needle = filters.q?.trim();
+  if (needle) {
+    const pattern = `"%${escapeIlikeQuoted(needle)}%"`;
+    next = next.or(
+      [
+        `display_name.ilike.${pattern}`,
+        `legal_name.ilike.${pattern}`,
+        `primary_base_city.ilike.${pattern}`,
+        `primary_base_label.ilike.${pattern}`,
+        `next_action_title.ilike.${pattern}`,
+        `service_name.ilike.${pattern}`,
+      ].join(","),
+    ) as T;
+  }
+
+  return next;
+}
+
+/**
+ * Screen read model: `v_organization_summary` with WHERE + optional range.
+ * Filters/search/sort/pagination stay on the view (docs/03-database/milestone1).
+ */
+export async function fetchOrganizationSummaries(
+  filters: OrganizationListFilters = {},
+): Promise<OrganizationSummary[]> {
+  const page = await fetchOrganizationSummaryPage(filters);
+  return page.rows;
+}
+
+export async function fetchOrganizationSummaryPage(
+  filters: OrganizationListFilters = {},
+): Promise<OrganizationSummaryPage> {
+  const supabase = createClient();
+  const pageSize = filters.pageSize;
+  const pageIndex = filters.pageIndex ?? 0;
+  const paginate =
+    typeof pageSize === "number" && pageSize > 0 && pageIndex >= 0;
+
+  let query = supabase
+    .from("v_organization_summary")
+    .select("*", paginate ? { count: "exact" } : undefined);
+
+  query = applyOrganizationSummaryFilters(query, filters);
+
+  const sortBy = filters.sortBy ?? "displayName";
+  const sortColumn = SORT_COLUMN[sortBy] ?? "display_name";
+  query = query.order(sortColumn, {
+    ascending: !(filters.sortDesc ?? false),
+    nullsFirst: false,
+  });
+
+  if (paginate) {
+    const from = pageIndex * pageSize;
+    const to = from + pageSize - 1;
+    query = query.range(from, to);
+  }
+
+  const { data, error, count } = await query;
   if (error) throw error;
 
-  let rows = (data ?? [])
+  const rows = (data ?? [])
     .map(mapOrganizationSummary)
     .filter((row): row is OrganizationSummary => row !== null);
 
-  if (filters.q?.trim()) {
-    const needle = filters.q.trim().toLowerCase();
-    rows = rows.filter((row) => {
-      const haystack = [
-        row.displayName,
-        row.legalName,
-        row.primaryBaseCity,
-        row.primaryBaseLabel,
-        row.nextActionTitle,
-        row.serviceName,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(needle);
-    });
-  }
+  return {
+    rows,
+    totalCount: paginate ? (count ?? rows.length) : rows.length,
+  };
+}
 
-  return rows;
+/** Country filter options — dedicated lightweight view, not full summary. */
+export async function fetchOrganizationFilterCountries(): Promise<string[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("v_organization_filter_countries")
+    .select("country_code")
+    .order("country_code");
+  if (error) throw error;
+  return (data ?? [])
+    .map((row) => row.country_code)
+    .filter((code): code is string => Boolean(code));
 }
 
 export async function fetchOrganizationOverview(

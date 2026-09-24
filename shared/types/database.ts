@@ -2394,6 +2394,12 @@ export type Database = {
         }
         Relationships: []
       }
+      v_organization_filter_countries: {
+        Row: {
+          country_code: string | null
+        }
+        Relationships: []
+      }
       v_network_place_suppliers: {
         Row: {
           location_id: string | null

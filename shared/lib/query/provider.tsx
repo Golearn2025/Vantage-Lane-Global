@@ -9,8 +9,9 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 0,          // always refetch when stale — Realtime covers live updates
-            refetchOnWindowFocus: true,  // refetch when user returns to tab
+            // Realtime invalidates lists; avoid refetch storms on every focus/nav.
+            staleTime: 60_000,
+            refetchOnWindowFocus: false,
             retry: 1,
           },
         },

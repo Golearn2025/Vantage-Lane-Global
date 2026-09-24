@@ -27,13 +27,14 @@ When implementation of DB objects starts: **new migrations only** (never edit ap
 | | |
 |---|---|
 | **Purpose** | One row per org for TanStack table |
-| **Inputs** | Filters via `WHERE` from client: `q`, `relationship_status`, `operational_status`, `legal_country_code`, `is_test`, pagination/sort |
+| **Inputs** | Filters via `WHERE` from client: `q`, `relationship_status`, `operational_status`, `legal_country_code`, `is_test`, **server** pagination (`.range`) + sort — never load the full view into the browser |
 | **Outputs (conceptual)** | `organization_id`, `display_name`, `legal_name`, `is_test`, `legal_country_code`, `primary_base_label`, `primary_base_city`, `relationship_status`, `relationship_status_changed_at`, `operational_status`, `service_code`, `last_contact_at`, `next_action_due_at`, `next_action_title` |
 | **Tables** | `organizations`, `partnerships`, `offerings`, `service_types`, `organization_locations` (primary), left join open `follow_ups`, max(`communications`/`activities`) for last contact |
 | **Security** | `WITH (security_invoker = true)`. Platform users see network via RLS on base tables; org members only own org. **No** note bodies, no audit. |
 | **Transaction** | Read-only |
 | **Indexes depended on** | `organizations(display_name)`, `partnerships(relationship_status)`, `partnerships(organization_id)` unique, `organization_locations(organization_id) WHERE is_primary`, `follow_ups(due_at) WHERE OPEN`, `communications(organization_id, occurred_at desc)`, `activities(organization_id, occurred_at desc)` |
-| **Frontend** | Query key `['organizations','summary', filters]`; consumer: Organizations table |
+| **Frontend** | Query key `['organizations','list', filters]` (incl. `pageIndex`/`pageSize`); consumer: Organizations table |
+| **Companion** | `v_organization_filter_countries` — distinct country codes for the filter dropdown (do not derive countries by scanning summary) |
 | **M1** | **Yes** |
 
 ### 2. `v_organization_overview` — **M1 required**

@@ -6,16 +6,17 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   flexRender,
   getCoreRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
   type ColumnDef,
-  type Row,
+  type PaginationState,
   type SortingState,
   useReactTable,
   type VisibilityState,
 } from "@tanstack/react-table";
 import { ArrowUpRight, Plus, Search, Trash2 } from "lucide-react";
-import { useOrganizationSummaries } from "@/modules/organizations/hooks";
+import {
+  useOrganizationFilterCountries,
+  useOrganizationSummaryPage,
+} from "@/modules/organizations/hooks";
 import { useOrganizationsListRealtime } from "@/modules/organizations/realtime";
 import type { OrganizationSummary } from "@/modules/organizations/types";
 import {
@@ -50,6 +51,23 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/ui/dropdown-menu";
 
+const PAGE_SIZE = 25;
+
+const SORTABLE: Record<
+  string,
+  | "displayName"
+  | "createdAt"
+  | "lastActivityAt"
+  | "relationshipStatus"
+  | "operationalStatus"
+> = {
+  displayName: "displayName",
+  createdAt: "createdAt",
+  lastActivityAt: "lastActivityAt",
+  relationshipStatus: "relationshipStatus",
+  operationalStatus: "operationalStatus",
+};
+
 function useUrlFilters() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -71,19 +89,46 @@ function useUrlFilters() {
     const params = new URLSearchParams(searchParams.toString());
     if (!value || value === "all") params.delete(key);
     else params.set(key, value);
+    if (key !== "page") params.delete("page");
     router.replace(`${pathname}?${params.toString()}`);
   }
 
-  return { filters, setParam };
+  const pageIndex = Math.max(
+    0,
+    Number.parseInt(searchParams.get("page") ?? "0", 10) || 0,
+  );
+
+  function setPageIndex(next: number) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next <= 0) params.delete("page");
+    else params.set("page", String(next));
+    router.replace(`${pathname}?${params.toString()}`);
+  }
+
+  return { filters, setParam, pageIndex, setPageIndex };
 }
 
 export function OrganizationsTable() {
   const router = useRouter();
-  const { filters, setParam } = useUrlFilters();
+  const { filters, setParam, pageIndex, setPageIndex } = useUrlFilters();
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "createdAt", desc: true },
+  ]);
+  const sortId = sorting[0]?.id ?? "createdAt";
+  const sortBy = SORTABLE[sortId] ?? "createdAt";
+  const sortDesc = sorting[0]?.desc ?? true;
+
   const { data, isLoading, isError, error, refetch, isFetching } =
-    useOrganizationSummaries(filters);
+    useOrganizationSummaryPage({
+      ...filters,
+      pageIndex,
+      pageSize: PAGE_SIZE,
+      sortBy,
+      sortDesc,
+    });
+  const { data: countries = [] } = useOrganizationFilterCountries();
   useOrganizationsListRealtime();
-  const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
+
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     serviceName: false,
     lastActivityAt: false,
@@ -91,6 +136,10 @@ export function OrganizationsTable() {
     isTest: false,
   });
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+
+  const rows = data?.rows ?? [];
+  const totalCount = data?.totalCount ?? 0;
+  const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const columns = useMemo<ColumnDef<OrganizationSummary>[]>(
     () => [
@@ -101,7 +150,9 @@ export function OrganizationsTable() {
         header: ({ table }) => (
           <Checkbox
             checked={table.getIsAllPageRowsSelected()}
-            onCheckedChange={(value) => table.toggleAllPageRowsSelected(Boolean(value))}
+            onCheckedChange={(value) =>
+              table.toggleAllPageRowsSelected(Boolean(value))
+            }
             aria-label="Select all"
           />
         ),
@@ -119,13 +170,11 @@ export function OrganizationsTable() {
         enableHiding: false,
         enableSorting: false,
         header: "#",
-        cell: ({ row, table }) => {
-          const allRows = table.getRowModel().rows;
-          const idx = allRows.findIndex((r: Row<OrganizationSummary>) => r.id === row.id);
-          return (
-            <span className="tabular-nums text-muted-foreground">{idx + 1}</span>
-          );
-        },
+        cell: ({ row }) => (
+          <span className="tabular-nums text-muted-foreground">
+            {pageIndex * PAGE_SIZE + row.index + 1}
+          </span>
+        ),
       },
       {
         accessorKey: "displayName",
@@ -133,7 +182,9 @@ export function OrganizationsTable() {
         cell: ({ row }) => (
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex items-center gap-2">
-              <span className="truncate font-medium">{row.original.displayName}</span>
+              <span className="truncate font-medium">
+                {row.original.displayName}
+              </span>
               {row.original.isTest ? <TestBadge /> : null}
             </div>
             {row.original.legalName ? (
@@ -147,14 +198,17 @@ export function OrganizationsTable() {
       {
         accessorKey: "legalCountryCode",
         header: "Country",
+        enableSorting: false,
         cell: ({ getValue }) => getValue<string>() ?? "—",
       },
       {
         id: "primaryBase",
         header: "Primary Base",
+        enableSorting: false,
         accessorFn: (row) =>
-          [row.primaryBaseLabel, row.primaryBaseCity].filter(Boolean).join(" · ") ||
-          "—",
+          [row.primaryBaseLabel, row.primaryBaseCity]
+            .filter(Boolean)
+            .join(" · ") || "—",
       },
       {
         accessorKey: "relationshipStatus",
@@ -173,11 +227,13 @@ export function OrganizationsTable() {
       {
         accessorKey: "coverageCount",
         header: "Coverage",
+        enableSorting: false,
         cell: ({ getValue }) => getValue<number>() ?? 0,
       },
       {
         id: "nextAction",
         header: "Next Action",
+        enableSorting: false,
         accessorFn: (row) => row.nextActionTitle ?? "",
         cell: ({ row }) =>
           row.original.nextActionTitle ? (
@@ -194,6 +250,7 @@ export function OrganizationsTable() {
       {
         accessorKey: "serviceName",
         header: "Service",
+        enableSorting: false,
         cell: ({ getValue }) => getValue<string>() ?? "—",
       },
       {
@@ -209,12 +266,14 @@ export function OrganizationsTable() {
       {
         accessorKey: "isTest",
         header: "Test/Real",
+        enableSorting: false,
         cell: ({ getValue }) => (getValue<boolean>() ? "TEST" : "Real"),
       },
       {
         id: "actions",
         header: "",
         enableHiding: false,
+        enableSorting: false,
         cell: ({ row }) => (
           <Link
             href={`/organizations/${row.original.organizationId}`}
@@ -227,33 +286,38 @@ export function OrganizationsTable() {
         ),
       },
     ],
-    [],
+    [pageIndex],
+  );
+
+  const pagination = useMemo<PaginationState>(
+    () => ({ pageIndex, pageSize: PAGE_SIZE }),
+    [pageIndex],
   );
 
   const table = useReactTable({
-    data: data ?? [],
+    data: rows,
     columns,
-    state: { sorting, columnVisibility, rowSelection },
-    onSortingChange: setSorting,
+    state: { sorting, columnVisibility, rowSelection, pagination },
+    onSortingChange: (updater) => {
+      setSorting(updater);
+      setPageIndex(0);
+    },
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    onPaginationChange: (updater) => {
+      const next =
+        typeof updater === "function" ? updater(pagination) : updater;
+      setPageIndex(next.pageIndex);
+    },
     enableRowSelection: true,
+    manualPagination: true,
+    manualSorting: true,
+    pageCount,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 20 } },
+    getRowId: (row) => row.organizationId,
   });
 
   const selectedCount = Object.values(rowSelection).filter(Boolean).length;
-
-  const countries = useMemo(() => {
-    const set = new Set(
-      (data ?? [])
-        .map((row) => row.legalCountryCode)
-        .filter((value): value is string => Boolean(value)),
-    );
-    return Array.from(set).sort();
-  }, [data]);
 
   return (
     <div className="space-y-5">
@@ -262,6 +326,12 @@ export function OrganizationsTable() {
           <h1 className="font-display text-3xl tracking-tight">Organizations</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Network CRM table for operators and leads.
+            {totalCount > 0 ? (
+              <span className="ml-1 tabular-nums">({totalCount})</span>
+            ) : null}
+            {isFetching && !isLoading ? (
+              <span className="ml-2 text-xs">Refreshing…</span>
+            ) : null}
           </p>
         </div>
         <Button asChild>
@@ -352,12 +422,9 @@ export function OrganizationsTable() {
         </Select>
       </div>
 
-      {/* Bulk action bar */}
       {selectedCount > 0 ? (
         <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
-          <span className="text-sm font-medium">
-            {selectedCount} selected
-          </span>
+          <span className="text-sm font-medium">{selectedCount} selected</span>
           <div className="ml-auto flex gap-2">
             <Button
               size="sm"
@@ -387,10 +454,7 @@ export function OrganizationsTable() {
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          {isFetching ? "Refreshing…" : `${data?.length ?? 0} organizations`}
-        </p>
+      <div className="flex items-center justify-end gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
@@ -407,65 +471,84 @@ export function OrganizationsTable() {
                 <DropdownMenuItem
                   key={column.id}
                   className="capitalize"
-                  onSelect={(event) => event.preventDefault()}
+                  onSelect={(e) => e.preventDefault()}
+                  onClick={() =>
+                    column.toggleVisibility(!column.getIsVisible())
+                  }
                 >
                   <Checkbox
                     checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(Boolean(value))
-                    }
                     className="mr-2"
+                    aria-hidden
                   />
                   {column.id}
                 </DropdownMenuItem>
               ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void refetch()}
+          disabled={isFetching}
+        >
+          Refresh
+        </Button>
       </div>
 
       {isLoading ? (
         <div className="space-y-2">
-          {Array.from({ length: 8 }).map((_, index) => (
-            <Skeleton key={index} className="h-12 w-full" />
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
       ) : isError ? (
-        <div className="rounded-lg border border-danger/30 bg-danger/5 p-6">
+        <div className="rounded-lg border border-danger/30 bg-danger/5 p-4 text-sm">
           <p className="font-medium text-danger">Could not load organizations</p>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-muted-foreground">
             {error instanceof Error ? error.message : "Unknown error"}
           </p>
-          <Button className="mt-4" variant="outline" onClick={() => refetch()}>
+          <Button
+            className="mt-3"
+            size="sm"
+            variant="outline"
+            onClick={() => void refetch()}
+          >
             Retry
           </Button>
         </div>
-      ) : (data?.length ?? 0) === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center">
-          <p className="font-medium">No organizations match these filters</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Adjust filters or add a new operator lead.
-          </p>
-          <Button asChild className="mt-4">
-            <Link href="/organizations/new">Add Operator</Link>
-          </Button>
+      ) : rows.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+          No organizations match these filters.
         </div>
       ) : (
         <>
-          <div className="hidden overflow-hidden rounded-lg border border-border md:block">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/60 text-left text-muted-foreground">
+          <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
+            <table className="w-full min-w-[960px] text-left text-sm">
+              <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (
                       <th
                         key={header.id}
-                        className="cursor-pointer px-3 py-2 font-medium"
+                        className="px-3 py-2.5 font-medium"
                         onClick={header.column.getToggleSortingHandler()}
+                        style={{
+                          cursor: header.column.getCanSort()
+                            ? "pointer"
+                            : undefined,
+                        }}
                       >
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
+                        {{
+                          asc: " ↑",
+                          desc: " ↓",
+                        }[header.column.getIsSorted() as string] ?? null}
                       </th>
                     ))}
                   </tr>
@@ -475,7 +558,7 @@ export function OrganizationsTable() {
                 {table.getRowModel().rows.map((row) => (
                   <tr
                     key={row.id}
-                    className="cursor-pointer border-t border-border hover:bg-muted/40"
+                    className="cursor-pointer border-b border-border/70 hover:bg-muted/30"
                     onClick={() =>
                       router.push(
                         `/organizations/${row.original.organizationId}`,
@@ -483,7 +566,7 @@ export function OrganizationsTable() {
                     }
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-3 py-3 align-middle">
+                      <td key={cell.id} className="px-3 py-2.5 align-middle">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
@@ -496,36 +579,37 @@ export function OrganizationsTable() {
             </table>
           </div>
 
-          <div className="space-y-2 md:hidden">
-            {table.getRowModel().rows.map((row) => (
+          <div className="space-y-3 md:hidden">
+            {rows.map((row) => (
               <div
-                key={row.id}
-                className="overflow-hidden rounded-xl border border-border bg-card"
+                key={row.organizationId}
+                className="rounded-lg border border-border bg-card/70 p-3"
               >
-                <div className="flex items-start justify-between gap-3 p-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium">{row.original.displayName}</p>
-                      {row.original.isTest ? <TestBadge /> : null}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-medium">{row.displayName}</p>
+                      {row.isTest ? <TestBadge /> : null}
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {row.original.legalCountryCode ?? "—"}
-                      {row.original.primaryBaseCity
-                        ? ` · ${row.original.primaryBaseCity}`
-                        : ""}
+                      {[row.legalCountryCode, row.primaryBaseCity]
+                        .filter(Boolean)
+                        .join(" · ") || "—"}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      <RelationshipStatusBadge status={row.original.relationshipStatus} />
-                      <OperationalStatusBadge status={row.original.operationalStatus} />
-                      {row.original.coverageCount > 0 ? (
+                      <RelationshipStatusBadge
+                        status={row.relationshipStatus}
+                      />
+                      <OperationalStatusBadge status={row.operationalStatus} />
+                      {row.coverageCount > 0 ? (
                         <span className="inline-flex items-center rounded-full border border-border px-2 py-px text-[10px] text-muted-foreground">
-                          {row.original.coverageCount} coverage
+                          {row.coverageCount} coverage
                         </span>
                       ) : null}
                     </div>
                   </div>
                   <Link
-                    href={`/organizations/${row.original.organizationId}`}
+                    href={`/organizations/${row.organizationId}`}
                     className="mt-0.5 flex shrink-0 items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
                   >
                     Open
@@ -546,8 +630,7 @@ export function OrganizationsTable() {
               Previous
             </Button>
             <span className="text-xs text-muted-foreground">
-              Page {table.getState().pagination.pageIndex + 1} of{" "}
-              {table.getPageCount()}
+              Page {pageIndex + 1} of {pageCount}
             </span>
             <Button
               variant="outline"

@@ -8,10 +8,12 @@ import {
   fetchOrganizationContacts,
   fetchOrganizationCoverage,
   fetchOrganizationDocuments,
+  fetchOrganizationFilterCountries,
   fetchOrganizationFleet,
   fetchOrganizationOverview,
   fetchOrganizationRateCards,
   fetchOrganizationSummaries,
+  fetchOrganizationSummaryPage,
   quickAddOperator,
   searchLocationsCatalog,
   type OrganizationListFilters,
@@ -27,6 +29,21 @@ export function useOrganizationSummaries(filters: OrganizationListFilters) {
   return useQuery({
     queryKey: organizationsKeys.list(filters),
     queryFn: () => fetchOrganizationSummaries(filters),
+  });
+}
+
+export function useOrganizationSummaryPage(filters: OrganizationListFilters) {
+  return useQuery({
+    queryKey: organizationsKeys.list(filters),
+    queryFn: () => fetchOrganizationSummaryPage(filters),
+  });
+}
+
+export function useOrganizationFilterCountries() {
+  return useQuery({
+    queryKey: [...organizationsKeys.all, "filter-countries"] as const,
+    queryFn: fetchOrganizationFilterCountries,
+    staleTime: 5 * 60_000,
   });
 }
 

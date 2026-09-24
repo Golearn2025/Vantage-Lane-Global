@@ -1,16 +1,34 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/shared/lib/supabase/client";
 import { organizationsKeys } from "@/shared/lib/query/keys";
 
-function invalidateOrgLists(queryClient: ReturnType<typeof useQueryClient>) {
-  void queryClient.invalidateQueries({ queryKey: organizationsKeys.lists() });
+const LIST_INVALIDATE_DEBOUNCE_MS = 400;
+
+function useDebouncedOrgListInvalidate() {
+  const queryClient = useQueryClient();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  return useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      void queryClient.invalidateQueries({
+        queryKey: organizationsKeys.lists(),
+      });
+    }, LIST_INVALIDATE_DEBOUNCE_MS);
+  }, [queryClient]);
 }
 
 export function useOrganizationsListRealtime(enabled = true) {
-  const queryClient = useQueryClient();
+  const invalidateOrgLists = useDebouncedOrgListInvalidate();
 
   useEffect(() => {
     if (!enabled) return;
@@ -20,29 +38,29 @@ export function useOrganizationsListRealtime(enabled = true) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "organizations" },
-        () => invalidateOrgLists(queryClient),
+        invalidateOrgLists,
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "partnerships" },
-        () => invalidateOrgLists(queryClient),
+        invalidateOrgLists,
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "offerings" },
-        () => invalidateOrgLists(queryClient),
+        invalidateOrgLists,
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "follow_ups" },
-        () => invalidateOrgLists(queryClient),
+        invalidateOrgLists,
       )
       .subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [enabled, queryClient]);
+  }, [enabled, invalidateOrgLists]);
 }
 
 export function useOrganizationProfileRealtime(organizationId: string) {
