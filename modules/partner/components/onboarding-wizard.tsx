@@ -21,8 +21,11 @@ import { AvailabilityStep } from "./wizard-steps/availability-step";
 import { VesselsStep } from "./wizard-steps/vessels-step";
 import { ServicesStep } from "./wizard-steps/services-step";
 import { SecurityServicesStep } from "./wizard-steps/security-services-step";
+import { AviationRoleStep } from "./wizard-steps/aviation-role-step";
 import { CapabilitiesStep } from "./wizard-steps/capabilities-step";
 import { ReviewStep } from "./wizard-steps/review-step";
+import { filterAviationWizardSteps } from "@/modules/partner/aviation-role";
+import { useAviationPartnerRole } from "@/modules/partner/hooks/use-aviation-partner-role";
 
 type Props = {
   currentStepKey: string;
@@ -47,6 +50,7 @@ function StepComponent({
     return <AvailabilityStep />;
   if (stepKey === "vessels") return <VesselsStep />;
   if (stepKey === "security_services") return <SecurityServicesStep />;
+  if (stepKey === "aviation_role") return <AviationRoleStep />;
   if (stepKey === "services") return <ServicesStep />;
   if (stepKey === "capabilities") return <CapabilitiesStep />;
   if (stepKey === "review") return <ReviewStep />;
@@ -77,6 +81,7 @@ export function OnboardingWizard({ currentStepKey, onNavigate }: Props) {
     queryKey: ["partner", "org"],
     queryFn: fetchPartnerOrgContext,
   });
+  const { role: aviationRole } = useAviationPartnerRole();
 
   const serviceCode = orgQ.data?.serviceCode ?? "GROUND_TRANSPORTATION";
 
@@ -86,7 +91,11 @@ export function OnboardingWizard({ currentStepKey, onNavigate }: Props) {
     enabled: Boolean(serviceCode),
   });
 
-  const steps = configQ.data?.wizardSteps ?? [];
+  const rawSteps = configQ.data?.wizardSteps ?? [];
+  const steps =
+    serviceCode === "AVIATION"
+      ? filterAviationWizardSteps(rawSteps, aviationRole)
+      : rawSteps;
   const currentIndex = steps.findIndex((s) => s.key === currentStepKey);
   const safeIndex = currentIndex < 0 ? 0 : currentIndex;
 

@@ -14,6 +14,8 @@ import {
   fetchPartnerOrgContext,
   acknowledgePartnerStandard,
 } from "@/modules/partner/api";
+import { filterAviationWizardSteps } from "@/modules/partner/aviation-role";
+import { useAviationPartnerRole } from "@/modules/partner/hooks/use-aviation-partner-role";
 import { Button } from "@/shared/ui/button";
 import { RelationshipStatusBadge } from "@/shared/components/status-badges";
 import { cn } from "@/shared/lib/utils";
@@ -51,6 +53,11 @@ const WIZARD_STEPS: Record<string, { key: string; label: string; href: string }[
     { key: "documents", label: "Upload documents", href: "/partner/documents" },
   ],
   AVIATION: [
+    {
+      key: "aviation_role",
+      label: "Operator or broker",
+      href: "/partner/aviation-role",
+    },
     { key: "coverage", label: "Coverage zone", href: "/partner/coverage" },
     { key: "aircraft", label: "Declare aircraft", href: "/partner/aircraft" },
     { key: "rates", label: "Enter rate card", href: "/partner/rates" },
@@ -189,8 +196,18 @@ function StandardGate({
 
 /* ─── Onboarding steps list ─────────────────────────────────── */
 
-function OnboardingChecklist({ serviceCode }: { serviceCode: string }) {
-  const steps = WIZARD_STEPS[serviceCode] ?? WIZARD_STEPS.GROUND_TRANSPORTATION;
+function OnboardingChecklist({
+  serviceCode,
+  aviationRole,
+}: {
+  serviceCode: string;
+  aviationRole?: "" | "OPERATOR" | "BROKER";
+}) {
+  const raw = WIZARD_STEPS[serviceCode] ?? WIZARD_STEPS.GROUND_TRANSPORTATION;
+  const steps =
+    serviceCode === "AVIATION"
+      ? filterAviationWizardSteps(raw, aviationRole)
+      : raw;
 
   return (
     <div className="space-y-2">
@@ -227,6 +244,7 @@ export function PartnerHome() {
     queryKey: ["partner", "org"],
     queryFn: fetchPartnerOrgContext,
   });
+  const { role: aviationRole } = useAviationPartnerRole();
 
   const serviceCode = org.data?.serviceCode ?? "GROUND_TRANSPORTATION";
   const status = org.data?.relationshipStatus;
@@ -236,6 +254,13 @@ export function PartnerHome() {
     justAcknowledged || !!org.data?.standardAcknowledgedAt;
 
   const isLoading = org.isPending;
+
+  const previewSteps = (() => {
+    const raw = WIZARD_STEPS[serviceCode] ?? WIZARD_STEPS.GROUND_TRANSPORTATION;
+    return serviceCode === "AVIATION"
+      ? filterAviationWizardSteps(raw, aviationRole)
+      : raw;
+  })();
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -276,22 +301,20 @@ export function PartnerHome() {
                 "divide-y divide-border/50 rounded-xl border border-border/60 bg-card overflow-hidden opacity-40 pointer-events-none select-none",
               )}
             >
-              {(WIZARD_STEPS[serviceCode] ?? WIZARD_STEPS.GROUND_TRANSPORTATION).map(
-                (step, i) => (
-                  <div
-                    key={step.key}
-                    className="flex items-center justify-between px-4 py-3.5"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-                        {i + 1}
-                      </span>
-                      <span className="text-sm font-medium">{step.label}</span>
-                    </div>
-                    <Lock className="h-4 w-4 text-muted-foreground" />
+              {previewSteps.map((step, i) => (
+                <div
+                  key={step.key}
+                  className="flex items-center justify-between px-4 py-3.5"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                      {i + 1}
+                    </span>
+                    <span className="text-sm font-medium">{step.label}</span>
                   </div>
-                ),
-              )}
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                </div>
+              ))}
             </div>
             <p className="text-center text-xs text-muted-foreground">
               Acknowledge the standard above to unlock onboarding steps.
@@ -320,7 +343,10 @@ export function PartnerHome() {
             </a>
           </div>
 
-          <OnboardingChecklist serviceCode={serviceCode} />
+          <OnboardingChecklist
+            serviceCode={serviceCode}
+            aviationRole={aviationRole}
+          />
         </>
       )}
     </div>

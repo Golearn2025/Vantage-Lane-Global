@@ -16,6 +16,7 @@ import {
   LogOut,
   MapPin,
   Menu,
+  Network,
   Pencil,
   Plane,
   PoundSterling,
@@ -30,6 +31,8 @@ import { cn } from "@/shared/lib/utils";
 import { signOut, useSessionProfile } from "@/modules/identity/session";
 import { useQuery } from "@tanstack/react-query";
 import { fetchPartnerOrgContext, fetchServiceTypeConfig } from "@/modules/partner/api";
+import { filterAviationWizardSteps } from "@/modules/partner/aviation-role";
+import { useAviationPartnerRole } from "@/modules/partner/hooks/use-aviation-partner-role";
 import { useRef, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/shared/ui/sheet";
 import { RelationshipStatusBadge } from "@/shared/components/status-badges";
@@ -42,6 +45,7 @@ const STEP_ICONS: Record<string, React.ElementType> = {
   fleet: Car,
   rates: PoundSterling,
   aircraft: Plane,
+  aviation_role: Network,
   operatives: Users,
   security_services: Shield,
   properties: Star,
@@ -85,6 +89,7 @@ const STEP_ROUTES: Record<string, string> = {
   fleet: "/partner/fleet",
   rates: "/partner/rates",
   aircraft: "/partner/aircraft",
+  aviation_role: "/partner/aviation-role",
   operatives: "/partner/operatives",
   security_services: "/partner/security-services",
   properties: "/partner/properties",
@@ -302,6 +307,7 @@ export function PartnerShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const org = useQuery({ queryKey: ["partner", "org"], queryFn: fetchPartnerOrgContext });
+  const { role: aviationRole } = useAviationPartnerRole();
   const serviceCode = org.data?.serviceCode ?? "GROUND_TRANSPORTATION";
 
   const configQ = useQuery({
@@ -310,7 +316,11 @@ export function PartnerShell({ children }: { children: React.ReactNode }) {
     enabled: Boolean(org.data),
   });
 
-  const navItems = buildNavItems(configQ.data?.wizardSteps ?? []);
+  const wizardSteps =
+    serviceCode === "AVIATION"
+      ? filterAviationWizardSteps(configQ.data?.wizardSteps ?? [], aviationRole)
+      : (configQ.data?.wizardSteps ?? []);
+  const navItems = buildNavItems(wizardSteps);
   const ServiceIcon = SERVICE_ICONS[serviceCode] ?? Car;
 
   async function handleSignOut() {

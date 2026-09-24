@@ -9,6 +9,8 @@ import {
   fetchServiceTypeConfig,
   submitForReview,
 } from "@/modules/partner/api";
+import { filterAviationWizardSteps } from "@/modules/partner/aviation-role";
+import { useAviationPartnerRole } from "@/modules/partner/hooks/use-aviation-partner-role";
 
 export function ReviewStep() {
   const qc = useQueryClient();
@@ -17,6 +19,7 @@ export function ReviewStep() {
     queryKey: ["partner", "org"],
     queryFn: fetchPartnerOrgContext,
   });
+  const { role: aviationRole } = useAviationPartnerRole();
 
   const serviceCode = orgQ.data?.serviceCode ?? "GROUND_TRANSPORTATION";
 
@@ -26,7 +29,11 @@ export function ReviewStep() {
     enabled: Boolean(serviceCode),
   });
 
-  const steps = configQ.data?.wizardSteps ?? [];
+  const rawSteps = configQ.data?.wizardSteps ?? [];
+  const steps =
+    serviceCode === "AVIATION"
+      ? filterAviationWizardSteps(rawSteps, aviationRole)
+      : rawSteps;
   const alreadySubmitted =
     orgQ.data?.relationshipStatus === "UNDER_REVIEW" ||
     orgQ.data?.relationshipStatus === "ACTIVE";
@@ -80,6 +87,7 @@ export function ReviewStep() {
                     "availability",
                     "operatives",
                     "security_services",
+                    "aviation_role",
                     "aircraft",
                     "vessels",
                     "properties",

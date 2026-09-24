@@ -20,6 +20,7 @@ import {
   uploadPartnerDocument,
   getServiceDocConfig,
 } from "@/modules/partner/api";
+import { useAviationPartnerRole } from "@/modules/partner/hooks/use-aviation-partner-role";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
@@ -61,6 +62,17 @@ const DOC_META: Record<string, DocMeta> = {
     description: "Air Operator Certificate issued by the national aviation authority (CAA, EASA, FAA, etc.).",
     hasExpiry: true,
     expiryLabel: "AOC expiry date",
+  },
+  AVIATION_INSURANCE: {
+    description:
+      "Aviation hull and/or liability insurance covering passenger and third-party risk for your operations.",
+    hasExpiry: true,
+    expiryLabel: "Insurance expiry date",
+  },
+  AIRCRAFT_PHOTOS: {
+    description:
+      "Recent photos of your aircraft — exterior and cabin. Helps VL present your fleet to clients.",
+    hasExpiry: false,
   },
   // Security
   SIA_LICENCE: {
@@ -117,6 +129,8 @@ const DOC_NAMES: Record<string, string> = {
   COMMERCIAL_INSURANCE: "Commercial / private hire insurance",
   FLEET_PHOTO_SET: "Fleet / vehicle images",
   AOC_CERTIFICATE: "Air Operator Certificate (AOC)",
+  AVIATION_INSURANCE: "Aviation hull / liability insurance",
+  AIRCRAFT_PHOTOS: "Aircraft photos",
   SIA_LICENCE: "SIA / security operative licence",
   VETTING_CERTIFICATE: "Vetting certificate (BS7858 or equivalent)",
   FOOD_HYGIENE_CERTIFICATE: "Food hygiene certificate",
@@ -424,6 +438,7 @@ export function PartnerDocumentsPanel() {
     queryKey: ["partner", "org"],
     queryFn: fetchPartnerOrgContext,
   });
+  const { role: aviationRole } = useAviationPartnerRole();
   const typesQ = useQuery({
     queryKey: ["partner", "doc-types"],
     queryFn: fetchDocumentTypes,
@@ -450,7 +465,20 @@ export function PartnerDocumentsPanel() {
 
   const orgId = orgQ.data?.organizationId ?? "";
   const serviceCode = orgQ.data?.serviceCode ?? "GROUND_TRANSPORTATION";
-  const docConfig = getServiceDocConfig(serviceCode);
+  const docConfig = getServiceDocConfig(serviceCode, {
+    aviationRole: serviceCode === "AVIATION" ? aviationRole : null,
+  });
+
+  const intro =
+    serviceCode === "AVIATION" && aviationRole === "BROKER"
+      ? "Broker documents — company registration and public liability. Operator AOC is not required for your account."
+      : serviceCode === "AVIATION"
+        ? "Operator documents — AOC and aviation insurance. Aircraft-specific papers may be requested per flight later."
+        : serviceCode === "GROUND_TRANSPORTATION"
+          ? "Operator-level documents only. Driver and vehicle documents are collected separately before job assignment."
+          : serviceCode === "YACHT"
+            ? "Operator-level documents for your maritime operations."
+            : "Business-level documents for your organisation. Upload the documents listed below to complete your onboarding.";
 
   // Count expiring / expired
   const expiringCount = (docsQ.data ?? []).filter(
@@ -467,11 +495,7 @@ export function PartnerDocumentsPanel() {
         <h1 className="font-display text-2xl tracking-tight md:text-3xl">
           Documents
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {serviceCode === "GROUND_TRANSPORTATION" || serviceCode === "AVIATION" || serviceCode === "YACHT"
-            ? "Operator-level documents only. Driver and vehicle documents are collected separately before job assignment."
-            : "Business-level documents for your organisation. Upload the documents listed below to complete your onboarding."}
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{intro}</p>
       </div>
 
       {/* Expiry alerts */}

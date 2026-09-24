@@ -781,8 +781,17 @@ export const SERVICE_DOC_CONFIG: Record<string, ServiceDocConfig> = {
     recommended: ["FLEET_PHOTO_SET"],
   },
   AVIATION: {
-    required: ["COMPANY_REGISTRATION", "AOC_CERTIFICATE", "COMMERCIAL_INSURANCE"],
-    recommended: ["FLEET_PHOTO_SET"],
+    // Default = operator path until role is chosen
+    required: ["COMPANY_REGISTRATION", "AOC_CERTIFICATE", "AVIATION_INSURANCE"],
+    recommended: ["AIRCRAFT_PHOTOS"],
+  },
+  AVIATION_OPERATOR: {
+    required: ["COMPANY_REGISTRATION", "AOC_CERTIFICATE", "AVIATION_INSURANCE"],
+    recommended: ["AIRCRAFT_PHOTOS"],
+  },
+  AVIATION_BROKER: {
+    required: ["COMPANY_REGISTRATION", "PUBLIC_LIABILITY_INSURANCE"],
+    recommended: ["PORTFOLIO"],
   },
   SECURITY: {
     required: ["COMPANY_REGISTRATION", "SIA_LICENCE", "COMMERCIAL_INSURANCE"],
@@ -816,7 +825,18 @@ export const DEFAULT_DOC_CONFIG: ServiceDocConfig = {
   recommended: [],
 };
 
-export function getServiceDocConfig(serviceCode: string): ServiceDocConfig {
+export function getServiceDocConfig(
+  serviceCode: string,
+  opts?: { aviationRole?: "OPERATOR" | "BROKER" | "" | null },
+): ServiceDocConfig {
+  if (serviceCode === "AVIATION") {
+    if (opts?.aviationRole === "BROKER") {
+      return SERVICE_DOC_CONFIG.AVIATION_BROKER;
+    }
+    if (opts?.aviationRole === "OPERATOR") {
+      return SERVICE_DOC_CONFIG.AVIATION_OPERATOR;
+    }
+  }
   return SERVICE_DOC_CONFIG[serviceCode] ?? DEFAULT_DOC_CONFIG;
 }
 
