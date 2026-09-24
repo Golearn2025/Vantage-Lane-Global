@@ -44,6 +44,21 @@ const SERVICE_FILTERS = [
   { value: "EVENTS", label: "Events" },
 ];
 
+/** VL Bookers working set: London only for now. Networking stays worldwide. */
+const REGION_FILTERS = [
+  { value: "london", label: "London (VL focus)" },
+  { value: "all", label: "All VL markets" },
+] as const;
+
+type RegionFilter = (typeof REGION_FILTERS)[number]["value"];
+
+function isLondonBooker(row: BookerLead) {
+  return (
+    (row.countryCode || "").toUpperCase() === "GB" &&
+    (row.city || "").trim().toLowerCase() === "london"
+  );
+}
+
 const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: "not_sent", label: "Not sent (ready)" },
   { value: "sent_family", label: "Already contacted (sent+)" },
@@ -123,6 +138,9 @@ export function BookersWorkspace() {
   const [view, setView] = useState<"leads" | "map">(() =>
     searchParams.get("view") === "map" ? "map" : "leads",
   );
+  const [regionFilter, setRegionFilter] = useState<RegionFilter>(() =>
+    searchParams.get("region") === "all" ? "all" : "london",
+  );
   const [serviceCode, setServiceCode] = useState("all");
   const [statusFilter, setStatusFilter] = useState(() =>
     initialStatusFromParams(searchParams.get("status")),
@@ -144,20 +162,24 @@ export function BookersWorkspace() {
   });
   const sendEmails = useSendBookerEmails();
 
-  const rows = useMemo(() => {
+  const regionScoped = useMemo(() => {
     const list = data ?? [];
-    return list.filter((r) =>
+    if (regionFilter === "london") return list.filter(isLondonBooker);
+    return list;
+  }, [data, regionFilter]);
+
+  const rows = useMemo(() => {
+    return regionScoped.filter((r) =>
       matchesStatusFilter(deriveBookerStatus(r), statusFilter),
     );
-  }, [data, statusFilter]);
+  }, [regionScoped, statusFilter]);
 
   const mapRows = useMemo(() => {
-    const list = data ?? [];
-    if (statusFilter === "all") return list;
-    return list.filter((r) =>
+    if (statusFilter === "all") return regionScoped;
+    return regionScoped.filter((r) =>
       matchesStatusFilter(deriveBookerStatus(r), statusFilter),
     );
-  }, [data, statusFilter]);
+  }, [regionScoped, statusFilter]);
 
   const resolvedPageSize =
     pageSizeOption === "all" ? Math.max(rows.length, 1) : Number(pageSizeOption);
@@ -169,7 +191,8 @@ export function BookersWorkspace() {
       pageSize: resolvedPageSize,
     }));
     setRowSelection({});
-  }, [serviceCode, statusFilter, q, onlyWithEmail, pageSizeOption]);
+    setFocusedOrgId(null);
+  }, [serviceCode, statusFilter, q, onlyWithEmail, pageSizeOption, regionFilter]);
 
   useEffect(() => {
     setPagination((p) =>
@@ -337,8 +360,9 @@ export function BookersWorkspace() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Bookers</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Demand desks VL contactează (hoteluri, concierge) — separat de
-            partner Invites. Listă pentru outreach + hartă cu locațiile.
+            Ținte VL (hotel / concierge pe care le contactăm) — separat de
+            Network. Focus acum: <span className="text-foreground">London</span>
+            . Partnerii worldwide rămân în Network / Invites.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -398,6 +422,21 @@ export function BookersWorkspace() {
           onChange={(e) => setQ(e.target.value)}
           className="lg:max-w-xs"
         />
+        <Select
+          value={regionFilter}
+          onValueChange={(v) => setRegionFilter(v as RegionFilter)}
+        >
+          <SelectTrigger className="lg:w-48">
+            <SelectValue placeholder="Region" />
+          </SelectTrigger>
+          <SelectContent>
+            {REGION_FILTERS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={serviceCode} onValueChange={setServiceCode}>
           <SelectTrigger className="lg:w-52">
             <SelectValue placeholder="Type" />
@@ -476,6 +515,7 @@ export function BookersWorkspace() {
               <BookersMap
                 bookers={mapRows}
                 focusedOrgId={focusedOrgId}
+                londonFocus={regionFilter === "london"}
                 className="h-full"
               />
             </div>

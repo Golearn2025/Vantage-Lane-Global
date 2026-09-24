@@ -207,10 +207,19 @@ function MapInner({
 type Props = {
   bookers: BookerLead[];
   focusedOrgId?: string | null;
+  /** When true, start zoomed on London and keep a London-ish min zoom. */
+  londonFocus?: boolean;
   className?: string;
 };
 
-export function BookersMap({ bookers, focusedOrgId = null, className }: Props) {
+const LONDON_CENTER = { lat: 51.5074, lng: -0.1278 };
+
+export function BookersMap({
+  bookers,
+  focusedOrgId = null,
+  londonFocus = true,
+  className,
+}: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const pins = useMemo(
     () =>
@@ -219,12 +228,14 @@ export function BookersMap({ bookers, focusedOrgId = null, className }: Props) {
       ),
     [bookers],
   );
-  const defaultCenter = pins[0]
-    ? {
-        lat: Number(pins[0].primaryBaseLat),
-        lng: Number(pins[0].primaryBaseLng),
-      }
-    : { lat: 51.5, lng: -0.12 };
+  const defaultCenter = londonFocus
+    ? LONDON_CENTER
+    : pins[0]
+      ? {
+          lat: Number(pins[0].primaryBaseLat),
+          lng: Number(pins[0].primaryBaseLng),
+        }
+      : LONDON_CENTER;
 
   if (!apiKey) {
     return (
@@ -249,17 +260,21 @@ export function BookersMap({ bookers, focusedOrgId = null, className }: Props) {
         <Map
           style={{ width: "100%", height: "100%" }}
           defaultCenter={defaultCenter}
-          defaultZoom={pins.length <= 1 ? 11 : 4}
+          defaultZoom={londonFocus ? 11 : pins.length <= 1 ? 11 : 3}
           mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID"}
           gestureHandling="greedy"
           disableDefaultUI={false}
-          minZoom={2}
+          minZoom={londonFocus ? 9 : 2}
         >
           <MapInner bookers={bookers} focusedOrgId={focusedOrgId} />
         </Map>
       </APIProvider>
       <p className="pointer-events-none absolute left-3 top-3 z-20 rounded-md bg-card/90 px-2.5 py-1 text-[11px] text-muted-foreground shadow backdrop-blur">
-        {pins.length} mapped · {bookers.length - pins.length} without coords
+        {londonFocus ? "London · " : ""}
+        {pins.length} mapped
+        {bookers.length - pins.length
+          ? ` · ${bookers.length - pins.length} without coords`
+          : ""}
       </p>
     </div>
   );
