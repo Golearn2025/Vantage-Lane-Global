@@ -20,6 +20,7 @@ import { SpecialisationsStep } from "./wizard-steps/specialisations-step";
 import { AvailabilityStep } from "./wizard-steps/availability-step";
 import { VesselsStep } from "./wizard-steps/vessels-step";
 import { ServicesStep } from "./wizard-steps/services-step";
+import { SecurityServicesStep } from "./wizard-steps/security-services-step";
 import { CapabilitiesStep } from "./wizard-steps/capabilities-step";
 import { ReviewStep } from "./wizard-steps/review-step";
 
@@ -45,6 +46,7 @@ function StepComponent({
   if (stepKey === "availability" || stepKey === "coverage")
     return <AvailabilityStep />;
   if (stepKey === "vessels") return <VesselsStep />;
+  if (stepKey === "security_services") return <SecurityServicesStep />;
   if (stepKey === "services") return <ServicesStep />;
   if (stepKey === "capabilities") return <CapabilitiesStep />;
   if (stepKey === "review") return <ReviewStep />;

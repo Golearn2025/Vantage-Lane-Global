@@ -71,9 +71,24 @@ export function ReviewStep() {
                   {step.label}
                 </span>
                 <span className="ml-auto text-xs text-muted-foreground">
-                  {["fleet", "rates", "documents", "profile", "coverage", "availability"].includes(step.key)
+                  {[
+                    "fleet",
+                    "rates",
+                    "documents",
+                    "profile",
+                    "coverage",
+                    "availability",
+                    "operatives",
+                    "security_services",
+                    "aircraft",
+                    "vessels",
+                    "properties",
+                    "specialisations",
+                    "services",
+                    "capabilities",
+                  ].includes(step.key)
                     ? "Persisted"
-                    : "UI draft"}
+                    : "Draft"}
                 </span>
               </li>
             ))}

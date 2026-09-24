@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Stethoscope } from "lucide-react";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
-import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
+import { useOnboardingInventoryStep } from "@/modules/partner/hooks/use-onboarding-inventory-step";
+import { InventorySaveBar } from "@/modules/partner/components/wizard-steps/inventory-save-bar";
 
 const MEDICAL_SERVICES = [
   { value: "medical_escort", label: "Medical escort & accompaniment" },
@@ -18,17 +17,35 @@ const MEDICAL_SERVICES = [
   { value: "wellness_retreat", label: "Wellness retreat coordination" },
 ];
 
-export function ServicesStep() {
-  const [services, setServices] = useState<string[]>([]);
-  const [regNumber, setRegNumber] = useState("");
-  const [cqcRegistered, setCqcRegistered] = useState<"yes" | "no" | "">("");
-  const [cqcNumber, setCqcNumber] = useState("");
-  const [indemnityProvider, setIndemnityProvider] = useState("");
+type ServicesInventory = {
+  services: string[];
+  regNumber: string;
+  cqcRegistered: "yes" | "no" | "";
+  cqcNumber: string;
+  indemnityProvider: string;
+};
 
-  function toggleService(value: string) {
-    setServices((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
-    );
+const DEFAULTS: ServicesInventory = {
+  services: [],
+  regNumber: "",
+  cqcRegistered: "",
+  cqcNumber: "",
+  indemnityProvider: "",
+};
+
+export function ServicesStep() {
+  const { value, setValue, save, isReady } = useOnboardingInventoryStep(
+    "services",
+    DEFAULTS,
+  );
+
+  function toggleService(code: string) {
+    setValue({
+      ...value,
+      services: value.services.includes(code)
+        ? value.services.filter((v) => v !== code)
+        : [...value.services, code],
+    });
   }
 
   return (
@@ -40,10 +57,7 @@ export function ServicesStep() {
         </p>
       </div>
 
-      <PartnerStepNotPersistedBanner label="Services" />
-
       <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm space-y-6">
-        {/* Services offered */}
         <div className="space-y-2">
           <Label>Services offered</Label>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -53,7 +67,7 @@ export function ServicesStep() {
                 className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5 text-sm hover:bg-muted/40 transition-colors"
               >
                 <Checkbox
-                  checked={services.includes(s.value)}
+                  checked={value.services.includes(s.value)}
                   onCheckedChange={() => toggleService(s.value)}
                 />
                 <span>{s.label}</span>
@@ -62,17 +76,15 @@ export function ServicesStep() {
           </div>
         </div>
 
-        {/* Regulatory body */}
         <div className="space-y-1.5">
           <Label>Regulatory body registration number</Label>
           <Input
             placeholder="e.g. GMC 1234567"
-            value={regNumber}
-            onChange={(e) => setRegNumber(e.target.value)}
+            value={value.regNumber}
+            onChange={(e) => setValue({ ...value, regNumber: e.target.value })}
           />
         </div>
 
-        {/* CQC registration */}
         <div className="space-y-2">
           <Label>CQC registration (UK) or equivalent</Label>
           <div className="flex gap-3">
@@ -80,9 +92,9 @@ export function ServicesStep() {
               <button
                 key={v}
                 type="button"
-                onClick={() => setCqcRegistered(v)}
+                onClick={() => setValue({ ...value, cqcRegistered: v })}
                 className={`flex-1 rounded-full border py-2 text-sm font-medium transition-colors ${
-                  cqcRegistered === v
+                  value.cqcRegistered === v
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border text-muted-foreground hover:bg-muted"
                 }`}
@@ -91,28 +103,37 @@ export function ServicesStep() {
               </button>
             ))}
           </div>
-          {cqcRegistered === "yes" && (
+          {value.cqcRegistered === "yes" && (
             <div className="mt-2 space-y-1.5">
               <Label>CQC / registration number</Label>
               <Input
                 placeholder="Registration reference"
-                value={cqcNumber}
-                onChange={(e) => setCqcNumber(e.target.value)}
+                value={value.cqcNumber}
+                onChange={(e) =>
+                  setValue({ ...value, cqcNumber: e.target.value })
+                }
               />
             </div>
           )}
         </div>
 
-        {/* Indemnity insurance */}
         <div className="space-y-1.5">
           <Label>Indemnity insurance provider</Label>
           <Input
             placeholder="e.g. Medical Protection Society"
-            value={indemnityProvider}
-            onChange={(e) => setIndemnityProvider(e.target.value)}
+            value={value.indemnityProvider}
+            onChange={(e) =>
+              setValue({ ...value, indemnityProvider: e.target.value })
+            }
           />
         </div>
       </div>
+
+      <InventorySaveBar
+        onSave={() => save.mutate()}
+        isPending={save.isPending}
+        disabled={!isReady}
+      />
     </div>
   );
 }

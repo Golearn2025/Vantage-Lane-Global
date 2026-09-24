@@ -5,7 +5,8 @@ import { X } from "lucide-react";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
-import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
+import { useOnboardingInventoryStep } from "@/modules/partner/hooks/use-onboarding-inventory-step";
+import { InventorySaveBar } from "@/modules/partner/components/wizard-steps/inventory-save-bar";
 
 const EVENT_TYPES = [
   { value: "corporate_conferences", label: "Corporate conferences & summits" },
@@ -31,34 +32,51 @@ const COUNTRIES = [
   "Hong Kong",
 ];
 
-export function CapabilitiesStep() {
-  const [eventTypes, setEventTypes] = useState<string[]>([]);
-  const [maxCapacity, setMaxCapacity] = useState("");
-  const [countryInput, setCountryInput] = useState("");
-  const [countries, setCountries] = useState<string[]>([]);
-  const [diplomaticExperience, setDiplomaticExperience] = useState<
-    "yes" | "no" | ""
-  >("");
-  const [inHouseProduction, setInHouseProduction] = useState<
-    "yes" | "no" | ""
-  >("");
+type CapabilitiesInventory = {
+  eventTypes: string[];
+  maxCapacity: string;
+  countries: string[];
+  diplomaticExperience: "yes" | "no" | "";
+  inHouseProduction: "yes" | "no" | "";
+};
 
-  function toggleEvent(value: string) {
-    setEventTypes((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
-    );
+const DEFAULTS: CapabilitiesInventory = {
+  eventTypes: [],
+  maxCapacity: "",
+  countries: [],
+  diplomaticExperience: "",
+  inHouseProduction: "",
+};
+
+export function CapabilitiesStep() {
+  const { value, setValue, save, isReady } = useOnboardingInventoryStep(
+    "capabilities",
+    DEFAULTS,
+  );
+  const [countryInput, setCountryInput] = useState("");
+
+  function toggleEvent(code: string) {
+    setValue({
+      ...value,
+      eventTypes: value.eventTypes.includes(code)
+        ? value.eventTypes.filter((v) => v !== code)
+        : [...value.eventTypes, code],
+    });
   }
 
-  function toggleCountry(value: string) {
-    setCountries((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
-    );
+  function toggleCountry(name: string) {
+    setValue({
+      ...value,
+      countries: value.countries.includes(name)
+        ? value.countries.filter((v) => v !== name)
+        : [...value.countries, name],
+    });
   }
 
   function addCustomCountry() {
     const t = countryInput.trim();
-    if (t && !countries.includes(t)) {
-      setCountries((prev) => [...prev, t]);
+    if (t && !value.countries.includes(t)) {
+      setValue({ ...value, countries: [...value.countries, t] });
     }
     setCountryInput("");
   }
@@ -72,10 +90,7 @@ export function CapabilitiesStep() {
         </p>
       </div>
 
-      <PartnerStepNotPersistedBanner label="Capabilities" />
-
       <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm space-y-6">
-        {/* Event types */}
         <div className="space-y-2">
           <Label>Event types</Label>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -85,7 +100,7 @@ export function CapabilitiesStep() {
                 className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5 text-sm hover:bg-muted/40 transition-colors"
               >
                 <Checkbox
-                  checked={eventTypes.includes(e.value)}
+                  checked={value.eventTypes.includes(e.value)}
                   onCheckedChange={() => toggleEvent(e.value)}
                 />
                 <span>{e.label}</span>
@@ -94,18 +109,18 @@ export function CapabilitiesStep() {
           </div>
         </div>
 
-        {/* Max capacity */}
         <div className="space-y-1.5">
           <Label>Maximum event capacity</Label>
           <Input
             inputMode="numeric"
             placeholder="e.g. 500"
-            value={maxCapacity}
-            onChange={(e) => setMaxCapacity(e.target.value)}
+            value={value.maxCapacity}
+            onChange={(e) =>
+              setValue({ ...value, maxCapacity: e.target.value })
+            }
           />
         </div>
 
-        {/* Countries */}
         <div className="space-y-2">
           <Label>Countries of operation</Label>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -115,14 +130,13 @@ export function CapabilitiesStep() {
                 className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5 text-sm hover:bg-muted/40 transition-colors"
               >
                 <Checkbox
-                  checked={countries.includes(c)}
+                  checked={value.countries.includes(c)}
                   onCheckedChange={() => toggleCountry(c)}
                 />
                 <span>{c}</span>
               </label>
             ))}
           </div>
-          {/* Custom country input */}
           <div className="mt-2 flex gap-2">
             <Input
               placeholder="Add another country…"
@@ -136,9 +150,9 @@ export function CapabilitiesStep() {
               }}
             />
           </div>
-          {countries.filter((c) => !COUNTRIES.includes(c)).length > 0 && (
+          {value.countries.filter((c) => !COUNTRIES.includes(c)).length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
-              {countries
+              {value.countries
                 .filter((c) => !COUNTRIES.includes(c))
                 .map((c) => (
                   <span
@@ -160,7 +174,6 @@ export function CapabilitiesStep() {
           )}
         </div>
 
-        {/* Diplomatic experience */}
         <div className="space-y-2">
           <Label>Diplomatic / protocol experience</Label>
           <div className="flex gap-3">
@@ -168,9 +181,11 @@ export function CapabilitiesStep() {
               <button
                 key={v}
                 type="button"
-                onClick={() => setDiplomaticExperience(v)}
+                onClick={() =>
+                  setValue({ ...value, diplomaticExperience: v })
+                }
                 className={`flex-1 rounded-full border py-2 text-sm font-medium transition-colors ${
-                  diplomaticExperience === v
+                  value.diplomaticExperience === v
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border text-muted-foreground hover:bg-muted"
                 }`}
@@ -181,7 +196,6 @@ export function CapabilitiesStep() {
           </div>
         </div>
 
-        {/* In-house production */}
         <div className="space-y-2">
           <Label>In-house production (AV, staging, etc.)</Label>
           <div className="flex gap-3">
@@ -189,9 +203,9 @@ export function CapabilitiesStep() {
               <button
                 key={v}
                 type="button"
-                onClick={() => setInHouseProduction(v)}
+                onClick={() => setValue({ ...value, inHouseProduction: v })}
                 className={`flex-1 rounded-full border py-2 text-sm font-medium transition-colors ${
-                  inHouseProduction === v
+                  value.inHouseProduction === v
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border text-muted-foreground hover:bg-muted"
                 }`}
@@ -202,6 +216,12 @@ export function CapabilitiesStep() {
           </div>
         </div>
       </div>
+
+      <InventorySaveBar
+        onSave={() => save.mutate()}
+        isPending={save.isPending}
+        disabled={!isReady}
+      />
     </div>
   );
 }

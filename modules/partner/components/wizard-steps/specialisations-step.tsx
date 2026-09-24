@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Label } from "@/shared/ui/label";
 import {
@@ -10,7 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
-import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
+import { useOnboardingInventoryStep } from "@/modules/partner/hooks/use-onboarding-inventory-step";
+import { InventorySaveBar } from "@/modules/partner/components/wizard-steps/inventory-save-bar";
 
 const SPECIALISATIONS = [
   { value: "travel_jets", label: "Travel planning & jets" },
@@ -44,15 +44,32 @@ const HNW_EXPERIENCE_OPTIONS = [
   { value: "10+", label: "10+ years" },
 ];
 
-export function SpecialisationsStep() {
-  const [specialisations, setSpecialisations] = useState<string[]>([]);
-  const [languages, setLanguages] = useState<string[]>([]);
-  const [hnwExperience, setHnwExperience] = useState("");
+type SpecialisationsInventory = {
+  specialisations: string[];
+  languages: string[];
+  hnwExperience: string;
+};
 
-  function toggle<T>(setter: React.Dispatch<React.SetStateAction<T[]>>, value: T) {
-    setter((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
-    );
+const DEFAULTS: SpecialisationsInventory = {
+  specialisations: [],
+  languages: [],
+  hnwExperience: "",
+};
+
+export function SpecialisationsStep() {
+  const { value, setValue, save, isReady } = useOnboardingInventoryStep(
+    "specialisations",
+    DEFAULTS,
+  );
+
+  function toggle(field: "specialisations" | "languages", next: string) {
+    const list = value[field];
+    setValue({
+      ...value,
+      [field]: list.includes(next)
+        ? list.filter((v) => v !== next)
+        : [...list, next],
+    });
   }
 
   return (
@@ -60,15 +77,12 @@ export function SpecialisationsStep() {
       <div>
         <h1 className="font-display text-2xl tracking-tight">Specialisations</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Tell us about your concierge expertise and the services you offer
-          to high-net-worth clients.
+          Tell us about your concierge expertise and the services you offer to
+          high-net-worth clients.
         </p>
       </div>
 
-      <PartnerStepNotPersistedBanner label="Specialisations" />
-
       <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm space-y-6">
-        {/* Service specialisations */}
         <div className="space-y-2">
           <Label>Service specialisations</Label>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -78,8 +92,8 @@ export function SpecialisationsStep() {
                 className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5 text-sm hover:bg-muted/40 transition-colors"
               >
                 <Checkbox
-                  checked={specialisations.includes(s.value)}
-                  onCheckedChange={() => toggle(setSpecialisations, s.value)}
+                  checked={value.specialisations.includes(s.value)}
+                  onCheckedChange={() => toggle("specialisations", s.value)}
                 />
                 <span>{s.label}</span>
               </label>
@@ -87,7 +101,6 @@ export function SpecialisationsStep() {
           </div>
         </div>
 
-        {/* Languages */}
         <div className="space-y-2">
           <Label>Languages spoken</Label>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -97,8 +110,8 @@ export function SpecialisationsStep() {
                 className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5 text-sm hover:bg-muted/40 transition-colors"
               >
                 <Checkbox
-                  checked={languages.includes(lang)}
-                  onCheckedChange={() => toggle(setLanguages, lang)}
+                  checked={value.languages.includes(lang)}
+                  onCheckedChange={() => toggle("languages", lang)}
                 />
                 <span>{lang}</span>
               </label>
@@ -106,10 +119,14 @@ export function SpecialisationsStep() {
           </div>
         </div>
 
-        {/* HNW experience */}
         <div className="space-y-1.5">
           <Label>HNW client experience</Label>
-          <Select value={hnwExperience} onValueChange={setHnwExperience}>
+          <Select
+            value={value.hnwExperience}
+            onValueChange={(hnwExperience) =>
+              setValue({ ...value, hnwExperience })
+            }
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select years of experience" />
             </SelectTrigger>
@@ -123,6 +140,12 @@ export function SpecialisationsStep() {
           </Select>
         </div>
       </div>
+
+      <InventorySaveBar
+        onSave={() => save.mutate()}
+        isPending={save.isPending}
+        disabled={!isReady}
+      />
     </div>
   );
 }

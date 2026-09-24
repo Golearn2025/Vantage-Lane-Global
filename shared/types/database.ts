@@ -1191,6 +1191,7 @@ export type Database = {
           created_at: string
           id: string
           label: string | null
+          onboarding_inventory: Record<string, unknown>
           operational_status: Database["public"]["Enums"]["operational_status"]
           organization_id: string
           service_type_id: string
@@ -1201,6 +1202,7 @@ export type Database = {
           created_at?: string
           id?: string
           label?: string | null
+          onboarding_inventory?: Record<string, unknown>
           operational_status?: Database["public"]["Enums"]["operational_status"]
           organization_id: string
           service_type_id: string
@@ -1211,6 +1213,7 @@ export type Database = {
           created_at?: string
           id?: string
           label?: string | null
+          onboarding_inventory?: Record<string, unknown>
           operational_status?: Database["public"]["Enums"]["operational_status"]
           organization_id?: string
           service_type_id?: string
@@ -2501,6 +2504,14 @@ export type Database = {
       rpc_partner_submit_for_review: {
         Args: { p_organization_id: string }
         Returns: undefined
+      }
+      rpc_partner_save_onboarding_inventory: {
+        Args: {
+          p_offering_id: string
+          p_step_key: string
+          p_payload: Json
+        }
+        Returns: Json
       }
       rpc_ensure_location_from_google_place: {
         Args: { p_payload: Json }

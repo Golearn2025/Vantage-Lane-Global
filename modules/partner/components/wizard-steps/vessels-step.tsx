@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Plus, Trash2, Anchor } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
@@ -12,7 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
-import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
+import { useOnboardingInventoryStep } from "@/modules/partner/hooks/use-onboarding-inventory-step";
+import { InventorySaveBar } from "@/modules/partner/components/wizard-steps/inventory-save-bar";
 
 type Vessel = {
   id: string;
@@ -25,6 +25,8 @@ type Vessel = {
   homePort: string;
   buildYear: string;
 };
+
+type VesselsInventory = { vessels: Vessel[] };
 
 const VESSEL_TYPES = [
   "Motor Yacht",
@@ -49,17 +51,25 @@ function newVessel(): Vessel {
   };
 }
 
-export function VesselsStep() {
-  const [vessels, setVessels] = useState<Vessel[]>([newVessel()]);
+const DEFAULTS: VesselsInventory = { vessels: [newVessel()] };
 
-  function update(id: string, field: keyof Vessel, value: string) {
-    setVessels((prev) =>
-      prev.map((v) => (v.id === id ? { ...v, [field]: value } : v)),
-    );
+export function VesselsStep() {
+  const { value, setValue, save, isReady } = useOnboardingInventoryStep(
+    "vessels",
+    DEFAULTS,
+  );
+  const vessels = value.vessels?.length > 0 ? value.vessels : [newVessel()];
+
+  function update(id: string, field: keyof Vessel, next: string) {
+    setValue({
+      vessels: vessels.map((v) =>
+        v.id === id ? { ...v, [field]: next } : v,
+      ),
+    });
   }
 
   function remove(id: string) {
-    setVessels((prev) => prev.filter((v) => v.id !== id));
+    setValue({ vessels: vessels.filter((v) => v.id !== id) });
   }
 
   return (
@@ -70,8 +80,6 @@ export function VesselsStep() {
           Declare the yachts and vessels available for charter or use.
         </p>
       </div>
-
-      <PartnerStepNotPersistedBanner label="Vessels" />
 
       <div className="space-y-4">
         {vessels.map((v, idx) => (
@@ -105,7 +113,6 @@ export function VesselsStep() {
                   onChange={(e) => update(v.id, "name", e.target.value)}
                 />
               </div>
-
               <div className="space-y-1.5">
                 <Label>Vessel type</Label>
                 <Select
@@ -124,7 +131,6 @@ export function VesselsStep() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-1.5">
                 <Label>Length (metres)</Label>
                 <Input
@@ -134,7 +140,6 @@ export function VesselsStep() {
                   onChange={(e) => update(v.id, "lengthMeters", e.target.value)}
                 />
               </div>
-
               <div className="space-y-1.5">
                 <Label>Build year</Label>
                 <Input
@@ -144,7 +149,6 @@ export function VesselsStep() {
                   onChange={(e) => update(v.id, "buildYear", e.target.value)}
                 />
               </div>
-
               <div className="space-y-1.5">
                 <Label>Guest capacity (day)</Label>
                 <Input
@@ -156,7 +160,6 @@ export function VesselsStep() {
                   }
                 />
               </div>
-
               <div className="space-y-1.5">
                 <Label>Guest capacity (overnight)</Label>
                 <Input
@@ -168,20 +171,18 @@ export function VesselsStep() {
                   }
                 />
               </div>
-
               <div className="space-y-1.5">
                 <Label>Flag state</Label>
                 <Input
-                  placeholder="e.g. Cayman Islands"
+                  placeholder="e.g. United Kingdom"
                   value={v.flagState}
                   onChange={(e) => update(v.id, "flagState", e.target.value)}
                 />
               </div>
-
               <div className="space-y-1.5">
                 <Label>Home port / marina</Label>
                 <Input
-                  placeholder="e.g. Port Vauban, Antibes"
+                  placeholder="e.g. Ocean Village, Southampton"
                   value={v.homePort}
                   onChange={(e) => update(v.id, "homePort", e.target.value)}
                 />
@@ -195,11 +196,17 @@ export function VesselsStep() {
         type="button"
         variant="outline"
         className="w-full rounded-full gap-2"
-        onClick={() => setVessels((prev) => [...prev, newVessel()])}
+        onClick={() => setValue({ vessels: [...vessels, newVessel()] })}
       >
         <Plus className="h-4 w-4" />
         Add another vessel
       </Button>
+
+      <InventorySaveBar
+        onSave={() => save.mutate()}
+        isPending={save.isPending}
+        disabled={!isReady}
+      />
     </div>
   );
 }

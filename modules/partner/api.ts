@@ -926,3 +926,344 @@ export async function acknowledgePartnerStandard(
   });
   if (error) throw error;
 }
+
+export type OnboardingInventory = Record<string, unknown>;
+
+export async function fetchOnboardingInventory(
+  offeringId: string,
+): Promise<OnboardingInventory> {
+  const { data, error } = await db()
+    .from("offerings")
+    .select("onboarding_inventory")
+    .eq("id", offeringId)
+    .single();
+  if (error) throw error;
+  const inventory = (data as { onboarding_inventory?: OnboardingInventory } | null)
+    ?.onboarding_inventory;
+  return inventory && typeof inventory === "object" ? inventory : {};
+}
+
+export async function saveOnboardingInventoryStep(
+  offeringId: string,
+  stepKey: string,
+  payload: unknown,
+): Promise<OnboardingInventory> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc(
+    "rpc_partner_save_onboarding_inventory",
+    {
+      p_offering_id: offeringId,
+      p_step_key: stepKey,
+      p_payload: payload as import("@/shared/types/database").Json,
+    },
+  );
+  if (error) throw error;
+  return (data as OnboardingInventory) ?? {};
+}
+
+/* ─── Security service lines + rates ─────────────────────────── */
+
+export type SecurityBillingUnit =
+  | "hourly"
+  | "daily"
+  | "shift_12h"
+  | "per_event"
+  | "per_post"
+  | "monthly"
+  | "flat";
+
+export type SecurityServiceLine = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  allowedUnits: SecurityBillingUnit[];
+  sortOrder: number;
+  allowsCustomLabel: boolean;
+};
+
+export type SecurityServiceDeclaration = {
+  id: string;
+  organizationId: string;
+  offeringId: string;
+  serviceLineId: string;
+  customLabel: string | null;
+  notes: string | null;
+  lineCode: string;
+  lineName: string;
+  allowsCustomLabel: boolean;
+  allowedUnits: SecurityBillingUnit[];
+};
+
+export type SecurityLineRate = {
+  declarationId: string;
+  billingUnit: SecurityBillingUnit;
+  amount: number | null;
+  notes: string | null;
+};
+
+const UNIT_TO_RULE: Record<
+  SecurityBillingUnit,
+  { ruleType: string; amountField: "hourly_amount" | "daily_amount" | "amount" }
+> = {
+  hourly: { ruleType: "HOURLY", amountField: "hourly_amount" },
+  daily: { ruleType: "DAILY", amountField: "daily_amount" },
+  shift_12h: { ruleType: "SHIFT_12H", amountField: "amount" },
+  per_event: { ruleType: "PER_EVENT", amountField: "amount" },
+  per_post: { ruleType: "PER_POST", amountField: "amount" },
+  monthly: { ruleType: "MONTHLY", amountField: "amount" },
+  flat: { ruleType: "FLAT", amountField: "amount" },
+};
+
+export async function fetchSecurityServiceLines(): Promise<SecurityServiceLine[]> {
+  const { data, error } = await db()
+    .from("security_service_lines")
+    .select(
+      "id, code, name, description, allowed_units, sort_order, allows_custom_label",
+    )
+    .eq("is_active", true)
+    .order("sort_order");
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    id: r.id as string,
+    code: r.code as string,
+    name: r.name as string,
+    description: (r.description as string | null) ?? null,
+    allowedUnits: (r.allowed_units as SecurityBillingUnit[]) ?? ["hourly", "daily"],
+    sortOrder: Number(r.sort_order ?? 0),
+    allowsCustomLabel: Boolean(r.allows_custom_label),
+  }));
+}
+
+export async function fetchSecurityDeclarations(
+  organizationId: string,
+  offeringId: string,
+): Promise<SecurityServiceDeclaration[]> {
+  const { data, error } = await db()
+    .from("security_service_declarations")
+    .select(
+      "id, organization_id, offering_id, service_line_id, custom_label, notes, security_service_lines ( code, name, allows_custom_label, allowed_units )",
+    )
+    .eq("organization_id", organizationId)
+    .eq("offering_id", offeringId)
+    .is("archived_at", null)
+    .order("created_at");
+  if (error) throw error;
+
+  return (data ?? []).map((r: Record<string, unknown>) => {
+    const line = r.security_service_lines as
+      | {
+          code: string;
+          name: string;
+          allows_custom_label: boolean;
+          allowed_units: SecurityBillingUnit[];
+        }
+      | {
+          code: string;
+          name: string;
+          allows_custom_label: boolean;
+          allowed_units: SecurityBillingUnit[];
+        }[]
+      | null;
+    const lineRow = Array.isArray(line) ? line[0] : line;
+    return {
+      id: r.id as string,
+      organizationId: r.organization_id as string,
+      offeringId: r.offering_id as string,
+      serviceLineId: r.service_line_id as string,
+      customLabel: (r.custom_label as string | null) ?? null,
+      notes: (r.notes as string | null) ?? null,
+      lineCode: lineRow?.code ?? "",
+      lineName: lineRow?.name ?? "Service",
+      allowsCustomLabel: Boolean(lineRow?.allows_custom_label),
+      allowedUnits: lineRow?.allowed_units ?? ["hourly", "daily"],
+    };
+  });
+}
+
+export async function upsertSecurityDeclaration(input: {
+  organizationId: string;
+  offeringId: string;
+  serviceLineId: string;
+  customLabel?: string | null;
+  notes?: string | null;
+  declarationId?: string | null;
+}): Promise<string> {
+  if (input.declarationId) {
+    const { error } = await db()
+      .from("security_service_declarations")
+      .update({
+        custom_label: input.customLabel?.trim() || null,
+        notes: input.notes ?? null,
+      })
+      .eq("id", input.declarationId);
+    if (error) throw error;
+    return input.declarationId;
+  }
+
+  const { data, error } = await db()
+    .from("security_service_declarations")
+    .insert({
+      organization_id: input.organizationId,
+      offering_id: input.offeringId,
+      service_line_id: input.serviceLineId,
+      custom_label: input.customLabel?.trim() || null,
+      notes: input.notes ?? null,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
+
+export async function archiveSecurityDeclaration(
+  declarationId: string,
+): Promise<void> {
+  const { error } = await db()
+    .from("security_service_declarations")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", declarationId);
+  if (error) throw error;
+}
+
+export async function fetchSecurityLineRates(
+  organizationId: string,
+  offeringId: string,
+): Promise<{ cardId: string | null; currencyCode: string; rates: SecurityLineRate[] }> {
+  const rates: SecurityLineRate[] = [];
+
+  const { data: card } = await db()
+    .from("gt_rate_cards")
+    .select("id, currency_code")
+    .eq("organization_id", organizationId)
+    .eq("offering_id", offeringId)
+    .eq("status", "DRAFT")
+    .is("archived_at", null)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!card) {
+    return { cardId: null, currencyCode: "GBP", rates: [] };
+  }
+
+  const { data: rules, error } = await db()
+    .from("gt_rate_rules")
+    .select(
+      "security_declaration_id, billing_unit, rule_type, hourly_amount, daily_amount, amount, notes",
+    )
+    .eq("rate_card_id", card.id)
+    .not("security_declaration_id", "is", null)
+    .is("archived_at", null);
+  if (error) throw error;
+
+  for (const r of rules ?? []) {
+    const unit = (r.billing_unit as SecurityBillingUnit | null) ?? null;
+    const ruleType = r.rule_type as string;
+    const billingUnit: SecurityBillingUnit =
+      unit ??
+      (ruleType === "HOURLY"
+        ? "hourly"
+        : ruleType === "DAILY"
+          ? "daily"
+          : ruleType === "SHIFT_12H"
+            ? "shift_12h"
+            : ruleType === "PER_EVENT"
+              ? "per_event"
+              : ruleType === "PER_POST"
+                ? "per_post"
+                : ruleType === "MONTHLY"
+                  ? "monthly"
+                  : "flat");
+    const amount =
+      billingUnit === "hourly"
+        ? (r.hourly_amount as number | null)
+        : billingUnit === "daily"
+          ? (r.daily_amount as number | null)
+          : (r.amount as number | null);
+    if (!r.security_declaration_id) continue;
+    rates.push({
+      declarationId: r.security_declaration_id as string,
+      billingUnit,
+      amount,
+      notes: (r.notes as string | null) ?? null,
+    });
+  }
+
+  return {
+    cardId: card.id as string,
+    currencyCode: (card.currency_code as string) ?? "GBP",
+    rates,
+  };
+}
+
+export async function upsertSecurityRateCard(input: {
+  organizationId: string;
+  offeringId: string;
+  cardId?: string | null;
+  currencyCode: string;
+  lineRates: SecurityLineRate[];
+}): Promise<string> {
+  let cardId = input.cardId ?? null;
+
+  if (cardId) {
+    const { error } = await db()
+      .from("gt_rate_cards")
+      .update({
+        currency_code: input.currencyCode,
+        distance_unit: "MILE",
+        status: "DRAFT",
+        name: "Security draft",
+      })
+      .eq("id", cardId);
+    if (error) throw rateCardError(error);
+  } else {
+    const { data, error } = await db()
+      .from("gt_rate_cards")
+      .insert({
+        organization_id: input.organizationId,
+        offering_id: input.offeringId,
+        currency_code: input.currencyCode,
+        distance_unit: "MILE",
+        status: "DRAFT",
+        name: "Security draft",
+      })
+      .select("id")
+      .single();
+    if (error) throw rateCardError(error);
+    cardId = data.id as string;
+  }
+
+  const { error: delErr } = await db()
+    .from("gt_rate_rules")
+    .delete()
+    .eq("rate_card_id", cardId)
+    .not("security_declaration_id", "is", null);
+  if (delErr) throw rateCardError(delErr);
+
+  const rows: Record<string, unknown>[] = [];
+  for (const line of input.lineRates) {
+    if (line.amount == null || !Number.isFinite(line.amount)) continue;
+    const map = UNIT_TO_RULE[line.billingUnit] ?? UNIT_TO_RULE.hourly;
+    const row: Record<string, unknown> = {
+      organization_id: input.organizationId,
+      rate_card_id: cardId,
+      rule_type: map.ruleType,
+      vehicle_category_id: null,
+      security_declaration_id: line.declarationId,
+      billing_unit: line.billingUnit,
+      notes: line.notes,
+    };
+    if (map.amountField === "hourly_amount") row.hourly_amount = line.amount;
+    else if (map.amountField === "daily_amount") row.daily_amount = line.amount;
+    else row.amount = line.amount;
+    rows.push(row);
+  }
+
+  if (rows.length > 0) {
+    const { error: insErr } = await db().from("gt_rate_rules").insert(rows);
+    if (insErr) throw rateCardError(insErr);
+  }
+
+  return cardId!;
+}

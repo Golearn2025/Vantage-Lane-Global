@@ -1,19 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { Shield } from "lucide-react";
-import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Checkbox } from "@/shared/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/ui/select";
-import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
+import { useOnboardingInventoryStep } from "@/modules/partner/hooks/use-onboarding-inventory-step";
+import { InventorySaveBar } from "@/modules/partner/components/wizard-steps/inventory-save-bar";
 
 const SIA_CATEGORIES = [
   { value: "close_protection", label: "Close Protection" },
@@ -36,24 +28,46 @@ const UK_REGIONS = [
   "International",
 ];
 
-export function OperativesStep() {
-  const [totalOperatives, setTotalOperatives] = useState("");
-  const [siaCategories, setSiaCategories] = useState<string[]>([]);
-  const [bs7858, setBs7858] = useState<"yes" | "no" | "">("");
-  const [acsApproved, setAcsApproved] = useState<"yes" | "no" | "">("");
-  const [acsNumber, setAcsNumber] = useState("");
-  const [areas, setAreas] = useState<string[]>([]);
+type OperativesInventory = {
+  totalOperatives: string;
+  siaCategories: string[];
+  bs7858: "yes" | "no" | "";
+  acsApproved: "yes" | "no" | "";
+  acsNumber: string;
+  areas: string[];
+};
 
-  function toggleSia(value: string) {
-    setSiaCategories((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
-    );
+const DEFAULTS: OperativesInventory = {
+  totalOperatives: "",
+  siaCategories: [],
+  bs7858: "",
+  acsApproved: "",
+  acsNumber: "",
+  areas: [],
+};
+
+export function OperativesStep() {
+  const { value, setValue, save, isReady } = useOnboardingInventoryStep(
+    "operatives",
+    DEFAULTS,
+  );
+
+  function toggleSia(code: string) {
+    setValue({
+      ...value,
+      siaCategories: value.siaCategories.includes(code)
+        ? value.siaCategories.filter((v) => v !== code)
+        : [...value.siaCategories, code],
+    });
   }
 
-  function toggleArea(value: string) {
-    setAreas((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
-    );
+  function toggleArea(region: string) {
+    setValue({
+      ...value,
+      areas: value.areas.includes(region)
+        ? value.areas.filter((v) => v !== region)
+        : [...value.areas, region],
+    });
   }
 
   return (
@@ -66,21 +80,24 @@ export function OperativesStep() {
         </p>
       </div>
 
-      <PartnerStepNotPersistedBanner label="Operatives" />
-
       <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm space-y-5">
-        {/* Total operatives */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Shield className="h-4 w-4" />
+          UK Security declaration
+        </div>
+
         <div className="space-y-1.5">
           <Label>Total number of licensed operatives</Label>
           <Input
             inputMode="numeric"
             placeholder="e.g. 24"
-            value={totalOperatives}
-            onChange={(e) => setTotalOperatives(e.target.value)}
+            value={value.totalOperatives}
+            onChange={(e) =>
+              setValue({ ...value, totalOperatives: e.target.value })
+            }
           />
         </div>
 
-        {/* SIA licence categories */}
         <div className="space-y-2">
           <Label>SIA licence categories held</Label>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -90,7 +107,7 @@ export function OperativesStep() {
                 className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5 text-sm hover:bg-muted/40 transition-colors"
               >
                 <Checkbox
-                  checked={siaCategories.includes(cat.value)}
+                  checked={value.siaCategories.includes(cat.value)}
                   onCheckedChange={() => toggleSia(cat.value)}
                 />
                 <span>{cat.label}</span>
@@ -99,7 +116,6 @@ export function OperativesStep() {
           </div>
         </div>
 
-        {/* BS7858 screening */}
         <div className="space-y-1.5">
           <Label>BS7858 screening compliance</Label>
           <div className="flex gap-3">
@@ -107,9 +123,9 @@ export function OperativesStep() {
               <button
                 key={v}
                 type="button"
-                onClick={() => setBs7858(v)}
+                onClick={() => setValue({ ...value, bs7858: v })}
                 className={`flex-1 rounded-full border py-2 text-sm font-medium transition-colors ${
-                  bs7858 === v
+                  value.bs7858 === v
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border text-muted-foreground hover:bg-muted"
                 }`}
@@ -120,7 +136,6 @@ export function OperativesStep() {
           </div>
         </div>
 
-        {/* ACS approved */}
         <div className="space-y-1.5">
           <Label>ACS approved (Approved Contractor Scheme)</Label>
           <div className="flex gap-3">
@@ -128,9 +143,9 @@ export function OperativesStep() {
               <button
                 key={v}
                 type="button"
-                onClick={() => setAcsApproved(v)}
+                onClick={() => setValue({ ...value, acsApproved: v })}
                 className={`flex-1 rounded-full border py-2 text-sm font-medium transition-colors ${
-                  acsApproved === v
+                  value.acsApproved === v
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border text-muted-foreground hover:bg-muted"
                 }`}
@@ -139,19 +154,20 @@ export function OperativesStep() {
               </button>
             ))}
           </div>
-          {acsApproved === "yes" && (
+          {value.acsApproved === "yes" && (
             <div className="mt-2 space-y-1.5">
               <Label>ACS number</Label>
               <Input
                 placeholder="ACS reference number"
-                value={acsNumber}
-                onChange={(e) => setAcsNumber(e.target.value)}
+                value={value.acsNumber}
+                onChange={(e) =>
+                  setValue({ ...value, acsNumber: e.target.value })
+                }
               />
             </div>
           )}
         </div>
 
-        {/* Areas of operation */}
         <div className="space-y-2">
           <Label>Areas of operation</Label>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -161,7 +177,7 @@ export function OperativesStep() {
                 className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5 text-sm hover:bg-muted/40 transition-colors"
               >
                 <Checkbox
-                  checked={areas.includes(region)}
+                  checked={value.areas.includes(region)}
                   onCheckedChange={() => toggleArea(region)}
                 />
                 <span>{region}</span>
@@ -170,6 +186,12 @@ export function OperativesStep() {
           </div>
         </div>
       </div>
+
+      <InventorySaveBar
+        onSave={() => save.mutate()}
+        isPending={save.isPending}
+        disabled={!isReady}
+      />
     </div>
   );
 }

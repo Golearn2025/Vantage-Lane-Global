@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Plus, Trash2, PlaneTakeoff } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
@@ -12,8 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
-
-import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
+import { useOnboardingInventoryStep } from "@/modules/partner/hooks/use-onboarding-inventory-step";
+import { InventorySaveBar } from "@/modules/partner/components/wizard-steps/inventory-save-bar";
 
 type Aircraft = {
   id: string;
@@ -24,6 +23,8 @@ type Aircraft = {
   passengerCapacity: string;
   yearOfManufacture: string;
 };
+
+type AircraftInventory = { aircraft: Aircraft[] };
 
 const AIRCRAFT_TYPES = [
   "Light Jet",
@@ -47,17 +48,26 @@ function newAircraft(): Aircraft {
   };
 }
 
-export function AircraftStep() {
-  const [aircraft, setAircraft] = useState<Aircraft[]>([newAircraft()]);
+const DEFAULTS: AircraftInventory = { aircraft: [newAircraft()] };
 
-  function update(id: string, field: keyof Aircraft, value: string) {
-    setAircraft((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, [field]: value } : a)),
-    );
+export function AircraftStep() {
+  const { value, setValue, save, isReady } = useOnboardingInventoryStep(
+    "aircraft",
+    DEFAULTS,
+  );
+  const aircraft =
+    value.aircraft?.length > 0 ? value.aircraft : [newAircraft()];
+
+  function update(id: string, field: keyof Aircraft, next: string) {
+    setValue({
+      aircraft: aircraft.map((a) =>
+        a.id === id ? { ...a, [field]: next } : a,
+      ),
+    });
   }
 
   function remove(id: string) {
-    setAircraft((prev) => prev.filter((a) => a.id !== id));
+    setValue({ aircraft: aircraft.filter((a) => a.id !== id) });
   }
 
   return (
@@ -70,8 +80,6 @@ export function AircraftStep() {
         </p>
       </div>
 
-      <PartnerStepNotPersistedBanner label="Aircraft" />
-
       <div className="space-y-4">
         {aircraft.map((a, idx) => (
           <div
@@ -81,9 +89,7 @@ export function AircraftStep() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <PlaneTakeoff className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">
-                  Aircraft {idx + 1}
-                </span>
+                <span className="text-sm font-medium">Aircraft {idx + 1}</span>
               </div>
               {aircraft.length > 1 && (
                 <button
@@ -116,7 +122,6 @@ export function AircraftStep() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-1.5">
                 <Label>Tail number</Label>
                 <Input
@@ -125,7 +130,6 @@ export function AircraftStep() {
                   onChange={(e) => update(a.id, "tailNumber", e.target.value)}
                 />
               </div>
-
               <div className="space-y-1.5">
                 <Label>AOC / Air Operator Certificate number</Label>
                 <Input
@@ -134,7 +138,6 @@ export function AircraftStep() {
                   onChange={(e) => update(a.id, "aocNumber", e.target.value)}
                 />
               </div>
-
               <div className="space-y-1.5">
                 <Label>Base airport / FBO (ICAO)</Label>
                 <Input
@@ -143,7 +146,6 @@ export function AircraftStep() {
                   onChange={(e) => update(a.id, "baseAirport", e.target.value)}
                 />
               </div>
-
               <div className="space-y-1.5">
                 <Label>Passenger capacity</Label>
                 <Input
@@ -155,7 +157,6 @@ export function AircraftStep() {
                   }
                 />
               </div>
-
               <div className="space-y-1.5">
                 <Label>Year of manufacture</Label>
                 <Input
@@ -176,11 +177,19 @@ export function AircraftStep() {
         type="button"
         variant="outline"
         className="w-full rounded-full gap-2"
-        onClick={() => setAircraft((prev) => [...prev, newAircraft()])}
+        onClick={() =>
+          setValue({ aircraft: [...aircraft, newAircraft()] })
+        }
       >
         <Plus className="h-4 w-4" />
         Add another aircraft
       </Button>
+
+      <InventorySaveBar
+        onSave={() => save.mutate()}
+        isPending={save.isPending}
+        disabled={!isReady}
+      />
     </div>
   );
 }

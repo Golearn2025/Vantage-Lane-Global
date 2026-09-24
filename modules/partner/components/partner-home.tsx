@@ -58,6 +58,11 @@ const WIZARD_STEPS: Record<string, { key: string; label: string; href: string }[
   ],
   SECURITY: [
     { key: "coverage", label: "Coverage zone", href: "/partner/coverage" },
+    {
+      key: "security_services",
+      label: "Services offered",
+      href: "/partner/security-services",
+    },
     { key: "operatives", label: "Operatives & SIA", href: "/partner/operatives" },
     { key: "rates", label: "Enter rate card", href: "/partner/rates" },
     { key: "documents", label: "Upload documents", href: "/partner/documents" },

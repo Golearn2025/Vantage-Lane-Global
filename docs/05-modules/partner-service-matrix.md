@@ -2,15 +2,20 @@
 
 One signup for all partners. After email verify they pick a **service type**. Wizard steps and documents change with that choice.
 
-## Catalog (now vs later)
+## Catalog
 
 | Code | Status | Partner types |
 |---|---|---|
 | `GROUND_TRANSPORTATION` | Live | Chauffeur / transfer operators |
 | `SECURITY` | Live | CP, events, residential, guarding firms |
-| `PRIVATE_AVIATION` | Catalog only | Later wizard |
-| `HOSPITALITY` | Not seeded yet | Hotels / restaurants / venues — **no vehicle rates** |
-| Events / Concierge | Later | — |
+| `AVIATION` | Live | Private aviation / AOC operators |
+| `HOSPITALITY` | Live | Hotels / restaurants / venues — **no GT vehicle rates** |
+| `CONCIERGE` | Live | Lifestyle / HNW concierge |
+| `YACHT` | Live | Yacht & marine charter |
+| `MEDICAL` | Live | Medical & wellness escorts |
+| `EVENTS` | Live | Events & protocol |
+
+UK test accounts: [partner-onboarding-test-kit.md](./partner-onboarding-test-kit.md).
 
 ## Shared path (all services)
 
@@ -29,31 +34,41 @@ One signup for all partners. After email verify they pick a **service type**. Wi
 | Accept Driver Network standard | yes | https://vantage-lane.com/driversnetwork |
 | Coverage (base + radius + airports) | yes | Country/city from setup |
 | Fleet (VL categories, year) | yes | Policy min year 2023+; older = warn / score down |
-| Rates (currency+unit once; distance/hourly/daily/fixed) | yes | Not used by Hospitality/Security |
-| Documents | yes | See below |
-
-**GT documents (org):** `COMPANY_REGISTRATION`, `OPERATOR_LICENCE` (or N/A by market), `COMMERCIAL_INSURANCE`, `FLEET_PHOTO_SET`. Recommended: vehicle registration/insurance.
+| Rates (currency+unit once; distance/hourly/daily/fixed) | yes | Not used by Hospitality |
+| Documents | yes | Company reg + operator licence + insurance |
 
 ### Security
 
-| Step | Required | Notes |
-|---|---|---|
-| Service subtypes (CP / events / residential / …) | yes | No vehicle categories |
-| Coverage (cities / regions) | yes | |
-| Licensing (e.g. SIA UK where applicable) | yes | Market-specific |
-| Rates (hourly / daily / event) | yes | **Not** per-km vehicle rates |
-| Documents | yes | Company reg + local security licences |
-
-### Hospitality (future)
+Full design: [security-partner-onboarding.md](security-partner-onboarding.md).
 
 | Step | Required | Notes |
 |---|---|---|
-| Venue type (hotel / restaurant / other) | yes | |
-| Location + capacity | yes | |
-| Offering / packages | yes | |
-| Rates (room / cover / event) | yes | **Never** GT vehicle rate card |
-| Documents | yes | Business registration, insurance |
+| Coverage | yes | Cities / regions |
+| **Services offered** | yes | VL catalog (CP, residential, door/venue, event…) + **Other** custom — like GT fleet categories |
+| Operatives & SIA | yes | Compliance (licences, headcount, ACS) — not the commercial catalog |
+| Rates | yes | **Per service line** (hourly / daily / event / per post…) — not one firm-wide hourly/daily |
+| Documents | yes | Company reg + SIA / local security licences |
+
+Industry: firms sell mission types (bodyguard, house for HNW, club/restaurant door, events), not a single “security” price.
+
+### Aviation / Yacht
+
+| Step | Required | Notes |
+|---|---|---|
+| Coverage | yes | |
+| Aircraft / Vessels | yes | Persisted inventory JSON |
+| Rates (hourly / daily) | yes | |
+| Documents | yes | AOC / maritime licences where applicable |
+
+### Hospitality / Concierge / Medical / Events
+
+| Step | Required | Notes |
+|---|---|---|
+| Coverage | yes | |
+| Properties / Specialisations / Services / Capabilities | yes | Persisted inventory JSON |
+| Rates | Hospitality: no GT card | Concierge/Medical/Events follow wizard config |
+| Documents | yes | Business registration + service-specific |
 
 ## Rule
 
-UI must branch on `offerings.service_type_id` / `service_types.code`. Do not show GT fleet/rate screens to Security or Hospitality.
+UI must branch on `offerings.service_type_id` / `service_types.code`. Do not show GT fleet screens to Security or Hospitality.

@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Plus, Trash2, Building2, Star } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
@@ -13,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
-import { PartnerStepNotPersistedBanner } from "./not-persisted-banner";
+import { useOnboardingInventoryStep } from "@/modules/partner/hooks/use-onboarding-inventory-step";
+import { InventorySaveBar } from "@/modules/partner/components/wizard-steps/inventory-save-bar";
 
 type Property = {
   id: string;
@@ -23,6 +23,8 @@ type Property = {
   capacity: string;
   amenities: string[];
 };
+
+type PropertiesInventory = { properties: Property[] };
 
 const PROPERTY_TYPES = [
   "Hotel",
@@ -82,22 +84,31 @@ function StarRating({
   );
 }
 
+const DEFAULTS: PropertiesInventory = { properties: [newProperty()] };
+
 export function PropertiesStep() {
-  const [properties, setProperties] = useState<Property[]>([newProperty()]);
+  const { value, setValue, save, isReady } = useOnboardingInventoryStep(
+    "properties",
+    DEFAULTS,
+  );
+  const properties =
+    value.properties?.length > 0 ? value.properties : [newProperty()];
 
   function update<K extends keyof Property>(
     id: string,
     field: K,
-    value: Property[K],
+    next: Property[K],
   ) {
-    setProperties((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)),
-    );
+    setValue({
+      properties: properties.map((p) =>
+        p.id === id ? { ...p, [field]: next } : p,
+      ),
+    });
   }
 
   function toggleAmenity(id: string, amenity: string) {
-    setProperties((prev) =>
-      prev.map((p) =>
+    setValue({
+      properties: properties.map((p) =>
         p.id === id
           ? {
               ...p,
@@ -107,11 +118,11 @@ export function PropertiesStep() {
             }
           : p,
       ),
-    );
+    });
   }
 
   function remove(id: string) {
-    setProperties((prev) => prev.filter((p) => p.id !== id));
+    setValue({ properties: properties.filter((p) => p.id !== id) });
   }
 
   return (
@@ -122,8 +133,6 @@ export function PropertiesStep() {
           Add the hospitality properties you operate or represent.
         </p>
       </div>
-
-      <PartnerStepNotPersistedBanner label="Properties" />
 
       <div className="space-y-4">
         {properties.map((p, idx) => (
@@ -167,7 +176,6 @@ export function PropertiesStep() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-1.5">
                 <Label>Property name</Label>
                 <Input
@@ -176,7 +184,6 @@ export function PropertiesStep() {
                   onChange={(e) => update(p.id, "name", e.target.value)}
                 />
               </div>
-
               <div className="space-y-1.5 sm:col-span-2">
                 <Label>Star rating</Label>
                 <StarRating
@@ -184,7 +191,6 @@ export function PropertiesStep() {
                   onChange={(v) => update(p.id, "starRating", v)}
                 />
               </div>
-
               <div className="space-y-1.5">
                 <Label>Number of rooms / covers / capacity</Label>
                 <Input
@@ -221,11 +227,19 @@ export function PropertiesStep() {
         type="button"
         variant="outline"
         className="w-full rounded-full gap-2"
-        onClick={() => setProperties((prev) => [...prev, newProperty()])}
+        onClick={() =>
+          setValue({ properties: [...properties, newProperty()] })
+        }
       >
         <Plus className="h-4 w-4" />
         Add another property
       </Button>
+
+      <InventorySaveBar
+        onSave={() => save.mutate()}
+        isPending={save.isPending}
+        disabled={!isReady}
+      />
     </div>
   );
 }
