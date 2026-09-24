@@ -8,6 +8,10 @@ import {
 } from "@/shared/lib/email/brand";
 import { looseDb } from "@/shared/lib/supabase/loose";
 
+/** VL hotel outreach — not "Network" (supplier invites). */
+const BOOKER_EMAIL_FROM =
+  process.env.EMAIL_FROM_BOOKER || "Vantage Lane <partnerships@vantage-lane.com>";
+
 type Body = {
   organizationIds?: string[];
   serviceCode?: string;
@@ -45,7 +49,7 @@ async function sendResendEmail(opts: {
   if (!apiKey) {
     throw new Error("RESEND_API_KEY is not configured");
   }
-  const from = process.env.EMAIL_FROM || EMAIL_FROM_DEFAULT;
+  const from = BOOKER_EMAIL_FROM || process.env.EMAIL_FROM || EMAIL_FROM_DEFAULT;
   const replyTo = process.env.EMAIL_REPLY_TO || EMAIL_REPLY_TO_DEFAULT;
 
   const res = await fetch("https://api.resend.com/emails", {

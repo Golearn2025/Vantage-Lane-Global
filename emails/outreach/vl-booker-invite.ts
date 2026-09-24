@@ -26,16 +26,19 @@ function contactRow(label: string, valueHtml: string) {
 /**
  * VL demand outreach for hotels / concierge desks.
  * Soft ask: additional capacity / specific vehicle — not replacing existing partners.
+ * CTAs: brochure + WhatsApp only (no CRM interest funnel).
  */
 export function buildBookerDemandEmail(opts: {
   organizationName: string;
   /** Optional; ignored when it is a desk placeholder (most booker leads). */
   contactName?: string | null;
-  interestUrl: string;
+  /** Kept for API compatibility; unused for hotel bookers. */
+  interestUrl?: string | null;
   cityHint?: string | null;
   brochureUrl?: string | null;
 }) {
-  const org = escapeHtml(opts.organizationName);
+  const orgRaw = cleanHotelLabel(opts.organizationName) || opts.organizationName || "Team";
+  const org = escapeHtml(orgRaw);
   const person = realPersonName(opts.contactName);
   const greeting = person
     ? `Hi ${escapeHtml(person)},`
@@ -69,35 +72,26 @@ export function buildBookerDemandEmail(opts: {
       `<span style="color:#e8e2d6;">Even one opportunity</span> is enough for us to demonstrate the standard of service we provide.`,
     )}
 
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;background:#0b0c0e;border:1px solid #2a2d36;border-radius:16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px;background:#0b0c0e;border:1px solid #2a2d36;border-radius:16px;">
       <tr>
         <td style="padding:24px 22px;text-align:center;">
           <p style="margin:0 0 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#8a8478;">
             A quick look at Vantage Lane and how we work:
           </p>
           ${ctaButton(brochureUrl, "View our brochure")}
+          <p style="margin:18px 0 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#8a8478;">
+            Save our WhatsApp for guest requests — even at short notice:
+          </p>
+          ${ctaButtonOutline(c.whatsappUrl, "WhatsApp Vantage Lane")}
         </td>
       </tr>
     </table>
 
     ${bodyText(
-      `If you ever need an additional chauffeur partner, even at short notice, we’d be pleased to assist.`,
+      `If you ever need an additional chauffeur partner, we’d be pleased to assist.`,
     )}
 
-    <p style="margin:8px 0 4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#c4a574;text-align:center;">
-      Optional
-    </p>
-    <p style="margin:0 0 4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.65;color:#8a8478;text-align:center;">
-      Prefer we stay on file as an extra contact for your desk?
-    </p>
-    ${ctaButtonOutline(opts.interestUrl, "Keep us as a contact")}
-
-    <p style="margin:18px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.65;color:#8a8478;text-align:center;">
-      Or message us on WhatsApp:
-      <a href="${c.whatsappUrl}" style="color:#c4a574;text-decoration:none;">${c.whatsappDisplay}</a>
-    </p>
-
-    <p style="margin:28px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.7;color:#b7b0a4;">
+    <p style="margin:8px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.7;color:#b7b0a4;">
       Kind regards,<br />
       <span style="color:#e8e2d6;">Vantage Lane</span><br />
       <span style="color:#8a8478;font-size:13px;">London</span>
@@ -130,10 +124,10 @@ export function buildBookerDemandEmail(opts: {
   `;
 
   return {
-    subject: `A chauffeur partner for ${opts.organizationName}`,
+    subject: `A chauffeur partner for ${orgRaw}`,
     html: emailShell({
       title: "Vantage Lane",
-      preheader: `${opts.organizationName}: additional chauffeur capacity when you need it — London fleet, 24/7 coordination`,
+      preheader: `${orgRaw}: additional chauffeur capacity when you need it — London fleet, 24/7 coordination`,
       bodyHtml,
       footerNote: `Vantage Lane · London · ${c.phoneDisplay} · ${c.websiteLabel}`,
     }),
@@ -146,6 +140,19 @@ function escapeHtml(value: string) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+/** Strip CRM desk suffixes so emails read as hotel names. */
+function cleanHotelLabel(value?: string | null): string {
+  let name = (value ?? "").trim();
+  if (!name) return "";
+  name = name
+    .replace(
+      /\s+(bookings?\s+desk|guest\s+(experience|services|relations)|concierge|reservations|desk)\s*$/i,
+      "",
+    )
+    .trim();
+  return name;
 }
 
 /** Desk placeholders from seed data are not personal greetings. */
