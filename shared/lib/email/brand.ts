@@ -1,8 +1,23 @@
 export const EMAIL_LOGO_URL =
   "https://zbzfbloiodcfjxbrdynl.supabase.co/storage/v1/object/public/assets/logo.png";
 
+/** Public brand brochure (general). Override via EMAIL_BROCHURE_URL in env if needed. */
+export const EMAIL_BROCHURE_URL_DEFAULT =
+  "https://vantage-lane-brochure.pages.dev/brochure/general";
+
 export const EMAIL_FROM_DEFAULT = "Vantage Lane Network <partnerships@vantage-lane.com>";
 export const EMAIL_REPLY_TO_DEFAULT = "partnerships@vantage-lane.com";
+
+/** VL public contact — matches brochure / site. */
+export const EMAIL_CONTACT = {
+  websiteLabel: "vantage-lane.com",
+  websiteUrl: "https://vantage-lane.com",
+  email: "partnerships@vantage-lane.com",
+  phoneDisplay: "+44 204 620 3131",
+  phoneTel: "+442046203131",
+  whatsappDisplay: "+44 7376 188443",
+  whatsappUrl: "https://wa.me/447376188443",
+} as const;
 
 import { networkServiceLabel } from "@/shared/lib/services";
 
@@ -67,6 +82,19 @@ export function ctaButton(href: string, label: string) {
   <tr>
     <td align="center" style="border-radius:999px;background:#c4a574;">
       <a href="${href}" style="display:inline-block;padding:16px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#0b0c0e;text-decoration:none;border-radius:999px;">
+        ${label}
+      </a>
+    </td>
+  </tr>
+</table>`;
+}
+
+/** Secondary outline CTA — for soft actions under a primary gold button. */
+export function ctaButtonOutline(href: string, label: string) {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:14px auto 0;">
+  <tr>
+    <td align="center" style="border-radius:999px;border:1px solid #c4a574;">
+      <a href="${href}" style="display:inline-block;padding:14px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#c4a574;text-decoration:none;border-radius:999px;">
         ${label}
       </a>
     </td>

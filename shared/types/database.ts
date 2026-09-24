@@ -2481,6 +2481,7 @@ export type Database = {
       }
     }
     Functions: {
+      get_booker_dashboard_stats: { Args: Record<string, never>; Returns: Json }
       get_outreach_dashboard_stats: { Args: Record<string, never>; Returns: Json }
       has_org_permission: {
         Args: { org_id: string; perm_code: string }

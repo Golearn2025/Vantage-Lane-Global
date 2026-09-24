@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
-import { useOutreachDashboardStats } from "@/modules/dashboard/hooks";
+import {
+  useBookerDashboardStats,
+  useOutreachDashboardStats,
+} from "@/modules/dashboard/hooks";
 import { useSessionProfile } from "@/modules/identity/session";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
@@ -17,11 +20,69 @@ type Kpi = {
   hint?: string;
 };
 
+function KpiGrid({
+  kpis,
+  loading,
+  count = 8,
+}: {
+  kpis: Kpi[];
+  loading: boolean;
+  count?: number;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+      {loading
+        ? Array.from({ length: count }).map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-lg" />
+          ))
+        : kpis.map((kpi) => {
+            const body = (
+              <>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {kpi.label}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="font-display text-3xl tracking-tight tabular-nums">
+                    {kpi.value.toLocaleString()}
+                  </p>
+                  {kpi.hint ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {kpi.hint}
+                    </p>
+                  ) : null}
+                </CardContent>
+              </>
+            );
+
+            if (kpi.href) {
+              return (
+                <Link
+                  key={kpi.key}
+                  href={kpi.href}
+                  className="block min-w-0 transition-opacity hover:opacity-90"
+                >
+                  <Card className="h-full">{body}</Card>
+                </Link>
+              );
+            }
+
+            return (
+              <Card key={kpi.key} className="min-w-0">
+                {body}
+              </Card>
+            );
+          })}
+    </div>
+  );
+}
+
 export function DashboardWorkspace() {
   const { data: profile, isLoading: profileLoading } = useSessionProfile();
   const canView = Boolean(profile?.canViewOpsDashboard);
-  const { data, isLoading, isError, error, refetch, isFetching } =
-    useOutreachDashboardStats(canView);
+  const networkQ = useOutreachDashboardStats(canView);
+  const bookerQ = useBookerDashboardStats(canView);
 
   if (profileLoading) {
     return (
@@ -48,13 +109,17 @@ export function DashboardWorkspace() {
     );
   }
 
-  const kpis: Kpi[] = [
+  const data = networkQ.data;
+  const booker = bookerQ.data;
+  const isFetching = networkQ.isFetching || bookerQ.isFetching;
+
+  const networkKpis: Kpi[] = [
     {
       key: "ready",
       label: "Not sent (ready)",
       value: data?.leadsReadyNotSent ?? 0,
       href: "/invites?status=not_sent",
-      hint: "Leads with email, not invited yet",
+      hint: "Supplier leads with email, not invited yet",
     },
     {
       key: "sent",
@@ -97,7 +162,7 @@ export function DashboardWorkspace() {
       label: "Leads w/ email",
       value: data?.leadsWithEmail ?? 0,
       href: "/invites?status=all",
-      hint: `${data?.leadsTotal ?? 0} leads total`,
+      hint: `${data?.leadsTotal ?? 0} supplier leads total`,
     },
     {
       key: "contacts",
@@ -107,25 +172,77 @@ export function DashboardWorkspace() {
     },
   ];
 
+  const bookerKpis: Kpi[] = [
+    {
+      key: "b_ready",
+      label: "Not sent (ready)",
+      value: booker?.leadsReadyNotSent ?? 0,
+      href: "/bookers?status=not_sent",
+      hint: "Hotel / concierge desks ready to contact",
+    },
+    {
+      key: "b_sent",
+      label: "Sent",
+      value: booker?.emailsSent ?? 0,
+      href: "/bookers?status=sent",
+    },
+    {
+      key: "b_delivered",
+      label: "Delivered",
+      value: booker?.emailsDelivered ?? 0,
+      href: "/bookers?status=delivered",
+    },
+    {
+      key: "b_opened",
+      label: "Opened",
+      value: booker?.emailsOpened ?? 0,
+      href: "/bookers?status=opened",
+    },
+    {
+      key: "b_clicked",
+      label: "Clicked",
+      value: booker?.emailsClicked ?? 0,
+      href: "/bookers?status=clicked",
+    },
+    {
+      key: "b_interested",
+      label: "Interested",
+      value: booker?.interested ?? 0,
+      href: "/bookers?status=signed_up",
+      hint: "CTA /interest accepted",
+    },
+    {
+      key: "b_failed",
+      label: "Failed / bounced",
+      value: booker?.emailsFailed ?? 0,
+      href: "/bookers?status=failed",
+    },
+    {
+      key: "b_leads",
+      label: "Bookers w/ email",
+      value: booker?.leadsWithEmail ?? 0,
+      href: "/bookers?status=all",
+      hint: `${booker?.leadsTotal ?? 0} booker leads total`,
+    },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-display text-3xl tracking-tight">Dashboard</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Outreach funnel and ops metrics for non-test network leads.
-            {data && data.communicationsEmailSent > 0 ? (
-              <>
-                {" "}
-                {data.communicationsEmailSent.toLocaleString()} emails logged.
-              </>
-            ) : null}
+            Two funnels, kept separate: Network partner invites and VL Bookers
+            (hotels / demand).
           </p>
         </div>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => void refetch()}
+          onClick={() => {
+            void networkQ.refetch();
+            void bookerQ.refetch();
+          }}
           disabled={isFetching}
         >
           <RefreshCw
@@ -135,57 +252,53 @@ export function DashboardWorkspace() {
         </Button>
       </div>
 
-      {isError ? (
-        <p className="text-sm text-danger">
-          {error instanceof Error ? error.message : "Failed to load metrics"}
-        </p>
-      ) : null}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Network · partner invites
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Supplier LEADs · join network
+            {data && data.communicationsEmailSent > 0 ? (
+              <> · {data.communicationsEmailSent.toLocaleString()} emails logged</>
+            ) : null}
+          </p>
+        </div>
+        {networkQ.isError ? (
+          <p className="text-sm text-danger">
+            {networkQ.error instanceof Error
+              ? networkQ.error.message
+              : "Failed to load network metrics"}
+          </p>
+        ) : null}
+        <KpiGrid kpis={networkKpis} loading={networkQ.isLoading} count={9} />
+      </section>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-        {isLoading
-          ? Array.from({ length: 9 }).map((_, i) => (
-              <Skeleton key={i} className="h-28 rounded-lg" />
-            ))
-          : kpis.map((kpi) => {
-              const body = (
-                <>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      {kpi.label}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="font-display text-3xl tracking-tight tabular-nums">
-                      {kpi.value.toLocaleString()}
-                    </p>
-                    {kpi.hint ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {kpi.hint}
-                      </p>
-                    ) : null}
-                  </CardContent>
-                </>
-              );
-
-              if (kpi.href) {
-                return (
-                  <Link
-                    key={kpi.key}
-                    href={kpi.href}
-                    className="block min-w-0 transition-opacity hover:opacity-90"
-                  >
-                    <Card className="h-full">{body}</Card>
-                  </Link>
-                );
-              }
-
-              return (
-                <Card key={kpi.key} className="min-w-0">
-                  {body}
-                </Card>
-              );
-            })}
-      </div>
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Vantage Lane · bookers
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Hotels / concierge demand · not network join
+            {booker && booker.communicationsEmailSent > 0 ? (
+              <>
+                {" "}
+                · {booker.communicationsEmailSent.toLocaleString()} booker emails
+                logged
+              </>
+            ) : null}
+          </p>
+        </div>
+        {bookerQ.isError ? (
+          <p className="text-sm text-danger">
+            {bookerQ.error instanceof Error
+              ? bookerQ.error.message
+              : "Failed to load booker metrics"}
+          </p>
+        ) : null}
+        <KpiGrid kpis={bookerKpis} loading={bookerQ.isLoading} count={8} />
+      </section>
     </div>
   );
 }

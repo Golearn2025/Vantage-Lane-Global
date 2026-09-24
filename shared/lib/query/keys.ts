@@ -41,4 +41,5 @@ export const identityKeys = {
 export const dashboardKeys = {
   all: ["dashboard"] as const,
   stats: () => [...dashboardKeys.all, "stats"] as const,
+  bookerStats: () => [...dashboardKeys.all, "booker-stats"] as const,
 };
