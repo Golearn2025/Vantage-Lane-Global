@@ -11,9 +11,10 @@ import {
   type ColumnDef,
   type RowSelectionState,
 } from "@tanstack/react-table";
-import { Mail, RefreshCw, Send } from "lucide-react";
+import { List, Mail, MapPinned, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useBookerLeads, useSendBookerEmails } from "@/modules/bookers/hooks";
+import { BookersMap } from "@/modules/bookers/components/bookers-map";
 import {
   deriveBookerStatus,
   type BookerLead,
@@ -119,6 +120,9 @@ function initialStatusFromParams(raw: string | null): string {
 
 export function BookersWorkspace() {
   const searchParams = useSearchParams();
+  const [view, setView] = useState<"leads" | "map">(() =>
+    searchParams.get("view") === "map" ? "map" : "leads",
+  );
   const [serviceCode, setServiceCode] = useState("all");
   const [statusFilter, setStatusFilter] = useState(() =>
     initialStatusFromParams(searchParams.get("status")),
@@ -127,6 +131,7 @@ export function BookersWorkspace() {
   const [onlyWithEmail, setOnlyWithEmail] = useState(true);
   const [pageSizeOption, setPageSizeOption] = useState<PageSizeOption>("25");
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [focusedOrgId, setFocusedOrgId] = useState<string | null>(null);
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 25,
@@ -135,12 +140,20 @@ export function BookersWorkspace() {
   const { data, isLoading, isError, error, refetch, isFetching } = useBookerLeads({
     serviceCode,
     q,
-    onlyWithEmail,
+    onlyWithEmail: view === "map" ? false : onlyWithEmail,
   });
   const sendEmails = useSendBookerEmails();
 
   const rows = useMemo(() => {
     const list = data ?? [];
+    return list.filter((r) =>
+      matchesStatusFilter(deriveBookerStatus(r), statusFilter),
+    );
+  }, [data, statusFilter]);
+
+  const mapRows = useMemo(() => {
+    const list = data ?? [];
+    if (statusFilter === "all") return list;
     return list.filter((r) =>
       matchesStatusFilter(deriveBookerStatus(r), statusFilter),
     );
@@ -324,11 +337,33 @@ export function BookersWorkspace() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Bookers</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Demand desks (hotels, concierge) — separate from partner Invites.
-            Email pitches guest coverage, not network join.
+            Demand desks VL contactează (hoteluri, concierge) — separat de
+            partner Invites. Listă pentru outreach + hartă cu locațiile.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <div className="flex rounded-full border border-border/60 p-0.5">
+            <Button
+              type="button"
+              size="sm"
+              variant={view === "leads" ? "secondary" : "ghost"}
+              className="rounded-full"
+              onClick={() => setView("leads")}
+            >
+              <List className="mr-1.5 size-3.5" />
+              Leads
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={view === "map" ? "secondary" : "ghost"}
+              className="rounded-full"
+              onClick={() => setView("map")}
+            >
+              <MapPinned className="mr-1.5 size-3.5" />
+              Map
+            </Button>
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -340,17 +375,19 @@ export function BookersWorkspace() {
             />
             Refresh
           </Button>
-          <Button
-            size="sm"
-            className="rounded-full"
-            disabled={selectedIds.length === 0 || sendEmails.isPending}
-            onClick={() => void handleSend()}
-          >
-            <Send className="mr-1.5 size-3.5" />
-            {sendEmails.isPending
-              ? "Sending…"
-              : `Send${selectedIds.length ? ` (${selectedIds.length})` : ""}`}
-          </Button>
+          {view === "leads" ? (
+            <Button
+              size="sm"
+              className="rounded-full"
+              disabled={selectedIds.length === 0 || sendEmails.isPending}
+              onClick={() => void handleSend()}
+            >
+              <Send className="mr-1.5 size-3.5" />
+              {sendEmails.isPending
+                ? "Sending…"
+                : `Send${selectedIds.length ? ` (${selectedIds.length})` : ""}`}
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -385,20 +422,66 @@ export function BookersWorkspace() {
             ))}
           </SelectContent>
         </Select>
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Checkbox
-            checked={onlyWithEmail}
-            onCheckedChange={(v) => setOnlyWithEmail(Boolean(v))}
-          />
-          Only with email
-        </label>
+        {view === "leads" ? (
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Checkbox
+              checked={onlyWithEmail}
+              onCheckedChange={(v) => setOnlyWithEmail(Boolean(v))}
+            />
+            Only with email
+          </label>
+        ) : null}
         <p className="text-xs text-muted-foreground lg:ml-auto">
-          {rows.length} match
+          {view === "map" ? mapRows.length : rows.length} match
           {data ? ` · ${data.length} total` : ""}
         </p>
       </div>
 
-      {isLoading ? (
+      {view === "map" ? (
+        isLoading ? (
+          <Skeleton className="h-[560px] w-full rounded-2xl" />
+        ) : isError ? (
+          <p className="text-sm text-danger">
+            {error instanceof Error ? error.message : "Failed to load bookers"}
+          </p>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <div className="max-h-[560px] space-y-1 overflow-y-auto rounded-2xl border border-border/60 p-2">
+              {mapRows.length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">No bookers</p>
+              ) : (
+                mapRows.map((row) => (
+                  <button
+                    key={row.organizationId}
+                    type="button"
+                    onClick={() => setFocusedOrgId(row.organizationId)}
+                    className={cn(
+                      "w-full rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-muted/40",
+                      focusedOrgId === row.organizationId && "bg-muted/50",
+                    )}
+                  >
+                    <p className="truncate text-sm font-medium">
+                      {row.displayName}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {row.primaryBaseCity || row.city || "—"}
+                      {row.countryCode ? `, ${row.countryCode}` : ""}
+                      {row.primaryBaseLat == null ? " · no pin" : ""}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="h-[560px] overflow-hidden rounded-2xl border border-border/60">
+              <BookersMap
+                bookers={mapRows}
+                focusedOrgId={focusedOrgId}
+                className="h-full"
+              />
+            </div>
+          </div>
+        )
+      ) : isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-14 w-full rounded-xl" />
