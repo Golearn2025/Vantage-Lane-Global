@@ -19,6 +19,8 @@ type InviteLeadRow = {
   opened_at: string | null;
   clicked_at: string | null;
   is_test: boolean | null;
+  unsubscribed_at: string | null;
+  outreach_rejected_at: string | null;
 };
 
 export async function listInviteLeads(filters?: {
@@ -31,7 +33,7 @@ export async function listInviteLeads(filters?: {
     let query = looseDb(supabase)
       .from<InviteLeadRow>("v_invite_leads")
       .select(
-        "organization_id, display_name, legal_country_code, legal_city, service_code, service_name, invite_email, contact_name, invited_at, invite_accepted_at, converted_organization_id, last_email_status, opened_at, clicked_at, is_test",
+        "organization_id, display_name, legal_country_code, legal_city, service_code, service_name, invite_email, contact_name, invited_at, invite_accepted_at, converted_organization_id, last_email_status, opened_at, clicked_at, is_test, unsubscribed_at, outreach_rejected_at",
       )
       .order("created_at", { ascending: false });
 
@@ -70,6 +72,8 @@ export async function listInviteLeads(filters?: {
     lastEmailStatus: r.last_email_status,
     openedAt: r.opened_at,
     clickedAt: r.clicked_at,
+    unsubscribedAt: r.unsubscribed_at,
+    outreachRejectedAt: r.outreach_rejected_at,
     isTest: Boolean(r.is_test),
   }));
 }

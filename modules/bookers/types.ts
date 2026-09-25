@@ -13,6 +13,8 @@ export type BookerLead = {
   lastEmailStatus: string | null;
   openedAt: string | null;
   clickedAt: string | null;
+  unsubscribedAt: string | null;
+  outreachRejectedAt: string | null;
   isTest: boolean;
   primaryBaseLabel: string | null;
   primaryBaseCity: string | null;
@@ -29,11 +31,14 @@ export type BookerStatus =
   | "clicked"
   | "signed_up"
   | "failed"
-  | "bounced";
+  | "bounced"
+  | "rejected";
 
 export function deriveBookerStatus(row: BookerLead): BookerStatus {
+  if (row.outreachRejectedAt || row.unsubscribedAt) return "rejected";
   if (row.inviteAcceptedAt || row.convertedOrganizationId) return "signed_up";
   const s = (row.lastEmailStatus || "").toLowerCase();
+  if (s === "rejected" || s === "unsubscribed") return "rejected";
   if (s === "clicked" || row.clickedAt) return "clicked";
   if (s === "opened" || row.openedAt) return "opened";
   if (s === "delivered") return "delivered";

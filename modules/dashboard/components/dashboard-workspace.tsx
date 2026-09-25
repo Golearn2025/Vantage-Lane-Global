@@ -218,6 +218,13 @@ export function DashboardWorkspace() {
       href: "/bookers?status=failed",
     },
     {
+      key: "b_rejected",
+      label: "Rejected / unsubscribed",
+      value: booker?.emailsRejected ?? 0,
+      href: "/bookers?status=rejected",
+      hint: "Opted out — never email again",
+    },
+    {
       key: "b_leads",
       label: "Bookers w/ email",
       value: booker?.leadsWithEmail ?? 0,
@@ -297,7 +304,7 @@ export function DashboardWorkspace() {
               : "Failed to load booker metrics"}
           </p>
         ) : null}
-        <KpiGrid kpis={bookerKpis} loading={bookerQ.isLoading} count={8} />
+        <KpiGrid kpis={bookerKpis} loading={bookerQ.isLoading} count={9} />
       </section>
     </div>
   );

@@ -28,6 +28,7 @@ type BookerStatsRow = {
   emails_clicked?: number;
   interested?: number;
   emails_failed?: number;
+  emails_rejected?: number;
   communications_email_sent?: number;
 };
 
@@ -72,6 +73,7 @@ export async function fetchBookerDashboardStats(): Promise<BookerDashboardStats>
     emailsClicked: n(row.emails_clicked),
     interested: n(row.interested),
     emailsFailed: n(row.emails_failed),
+    emailsRejected: n(row.emails_rejected),
     communicationsEmailSent: n(row.communications_email_sent),
   };
 }

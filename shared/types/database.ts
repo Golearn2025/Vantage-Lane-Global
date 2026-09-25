@@ -2523,6 +2523,10 @@ export type Database = {
         Args: { p_token: string }
         Returns: Json
       }
+      rpc_outreach_unsubscribe: {
+        Args: { p_token: string }
+        Returns: Json
+      }
     }
     Enums: {
       activity_visibility: "VL_ONLY" | "ORG_SHARED"

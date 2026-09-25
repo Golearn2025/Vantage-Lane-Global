@@ -65,6 +65,7 @@ const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: "clicked", label: "Clicked" },
   { value: "signed_up", label: "Interested" },
   { value: "failed", label: "Failed / bounced" },
+  { value: "rejected", label: "Rejected / unsubscribed" },
   { value: "all", label: "All statuses" },
 ];
 
@@ -77,6 +78,7 @@ const STATUS_STYLES: Record<BookerStatus, string> = {
   signed_up: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
   failed: "bg-danger/15 text-danger",
   bounced: "bg-danger/15 text-danger",
+  rejected: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
 };
 
 const STATUS_LABEL: Record<BookerStatus, string> = {
@@ -88,6 +90,7 @@ const STATUS_LABEL: Record<BookerStatus, string> = {
   signed_up: "Interested",
   failed: "Failed",
   bounced: "Bounced",
+  rejected: "Rejected",
 };
 
 const ALREADY_CONTACTED: BookerStatus[] = [
@@ -109,6 +112,7 @@ function matchesStatusFilter(status: BookerStatus, filter: string) {
 function canSelectForSend(row: BookerLead, statusFilter: string) {
   if (!row.inviteEmail) return false;
   const st = deriveBookerStatus(row);
+  if (st === "rejected" || st === "signed_up") return false;
   if (
     statusFilter === "sent_family" ||
     statusFilter === "sent" ||
@@ -117,7 +121,7 @@ function canSelectForSend(row: BookerLead, statusFilter: string) {
     statusFilter === "clicked" ||
     statusFilter === "all"
   ) {
-    return st !== "signed_up";
+    return true;
   }
   if (statusFilter === "failed") return st === "failed" || st === "bounced";
   if (statusFilter === "not_sent") return st === "not_sent";

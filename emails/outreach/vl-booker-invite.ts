@@ -36,6 +36,7 @@ export function buildBookerDemandEmail(opts: {
   interestUrl?: string | null;
   cityHint?: string | null;
   brochureUrl?: string | null;
+  unsubscribeUrl?: string | null;
 }) {
   const orgRaw = cleanHotelLabel(opts.organizationName) || opts.organizationName || "Team";
   const org = escapeHtml(orgRaw);
@@ -130,6 +131,7 @@ export function buildBookerDemandEmail(opts: {
       preheader: `${orgRaw}: additional chauffeur capacity when you need it — London fleet, 24/7 coordination`,
       bodyHtml,
       footerNote: `Vantage Lane · London · ${c.phoneDisplay} · ${c.websiteLabel}`,
+      unsubscribeUrl: opts.unsubscribeUrl,
     }),
   };
 }

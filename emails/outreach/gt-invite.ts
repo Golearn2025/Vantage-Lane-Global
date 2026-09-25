@@ -40,6 +40,7 @@ export function buildNetworkInviteEmail(opts: {
   organizationName: string;
   serviceCode: string;
   inviteUrl: string;
+  unsubscribeUrl?: string | null;
 }) {
   const service = serviceLabel(opts.serviceCode);
   const org = escapeHtml(opts.organizationName);
@@ -117,6 +118,7 @@ export function buildNetworkInviteEmail(opts: {
       bodyHtml,
       footerNote:
         "Questions? Reply to this email · partnerships@vantage-lane.com · vantage-lane.com",
+      unsubscribeUrl: opts.unsubscribeUrl,
     }),
   };
 }

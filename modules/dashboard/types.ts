@@ -23,5 +23,6 @@ export type BookerDashboardStats = {
   emailsClicked: number;
   interested: number;
   emailsFailed: number;
+  emailsRejected: number;
   communicationsEmailSent: number;
 };

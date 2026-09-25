@@ -32,9 +32,17 @@ export function emailShell(opts: {
   preheader?: string;
   bodyHtml: string;
   footerNote?: string;
+  unsubscribeUrl?: string | null;
 }) {
   const preheader = opts.preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${opts.preheader}</div>`
+    : "";
+  const unsub = opts.unsubscribeUrl?.trim();
+  const unsubLine = unsub
+    ? `<p style="margin:10px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#5c574e;">
+                <a href="${unsub}" style="color:#8a8478;text-decoration:underline;">Unsubscribe</a>
+                from future outreach emails
+              </p>`
     : "";
   return `<!DOCTYPE html>
 <html lang="en">
@@ -67,6 +75,7 @@ export function emailShell(opts: {
               <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#5c574e;">
                 ${opts.footerNote ?? "© Vantage Lane · Partner Network"}
               </p>
+              ${unsubLine}
             </td>
           </tr>
         </table>

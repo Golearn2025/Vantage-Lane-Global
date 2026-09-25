@@ -24,6 +24,8 @@ type InviteLeadRow = {
   invite_accepted_at?: string | null;
   last_email_status?: string | null;
   invited_at?: string | null;
+  unsubscribed_at?: string | null;
+  outreach_rejected_at?: string | null;
 };
 
 type InvitationRow = { id: string };
@@ -38,6 +40,7 @@ async function sendResendEmail(opts: {
   html: string;
   invitationId: string;
   organizationId: string;
+  unsubscribeUrl: string;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -58,6 +61,10 @@ async function sendResendEmail(opts: {
       reply_to: replyTo,
       subject: opts.subject,
       html: opts.html,
+      headers: {
+        "List-Unsubscribe": `<${opts.unsubscribeUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
       tags: [
         { name: "invitation_id", value: opts.invitationId },
         { name: "organization_id", value: opts.organizationId },
@@ -111,7 +118,7 @@ export async function POST(request: Request) {
   const { data: leadRows, error: viewErr } = await db
     .from<InviteLeadRow>("v_invite_leads")
     .select(
-      "organization_id, display_name, invite_email, contact_id, service_code, invite_accepted_at, last_email_status, invited_at",
+      "organization_id, display_name, invite_email, contact_id, service_code, invite_accepted_at, last_email_status, invited_at, unsubscribed_at, outreach_rejected_at",
     )
     .in("organization_id", organizationIds);
 
@@ -128,6 +135,19 @@ export async function POST(request: Request) {
   }> = [];
 
   for (const lead of (leadRows as InviteLeadRow[] | null) ?? []) {
+    const rejected =
+      Boolean(lead.outreach_rejected_at) ||
+      Boolean(lead.unsubscribed_at) ||
+      (lead.last_email_status || "").toLowerCase() === "rejected";
+    if (rejected) {
+      results.push({
+        organizationId: lead.organization_id,
+        ok: true,
+        skipped: true,
+        error: "rejected",
+      });
+      continue;
+    }
     if (skipAlready && !forceResend) {
       const status = (lead.last_email_status || "").toLowerCase();
       const already =
@@ -160,6 +180,8 @@ export async function POST(request: Request) {
     const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
     const inviteService = lead.service_code || serviceCode;
     const inviteUrl = `${origin}/join?invite=${token}`;
+    const unsubscribeUrl = `${origin}/unsubscribe?invite=${token}`;
+    const listUnsubscribeUrl = `${origin}/api/outreach/unsubscribe?invite=${token}`;
 
     const { data: invitation, error: invErr } = await db
       .from<InvitationRow>("organization_invitations")
@@ -191,6 +213,7 @@ export async function POST(request: Request) {
         organizationName: lead.display_name || "Partner",
         serviceCode: inviteService,
         inviteUrl,
+        unsubscribeUrl,
       });
       const resendId = await sendResendEmail({
         to: email,
@@ -198,6 +221,7 @@ export async function POST(request: Request) {
         html: mail.html,
         invitationId: invitation.id,
         organizationId: lead.organization_id,
+        unsubscribeUrl: listUnsubscribeUrl,
       });
 
       await db
