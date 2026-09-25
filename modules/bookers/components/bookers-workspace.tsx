@@ -45,10 +45,7 @@ const SERVICE_FILTERS = [
 ];
 
 /** VL Bookers working set: London only for now. Networking stays worldwide. */
-const REGION_FILTERS = [
-  { value: "london", label: "London (VL focus)" },
-  { value: "all", label: "All VL markets" },
-] as const;
+const REGION_FILTERS = [{ value: "london", label: "London only" }] as const;
 
 type RegionFilter = (typeof REGION_FILTERS)[number]["value"];
 
@@ -139,9 +136,7 @@ export function BookersWorkspace() {
   const [view, setView] = useState<"leads" | "map">(() =>
     searchParams.get("view") === "map" ? "map" : "leads",
   );
-  const [regionFilter, setRegionFilter] = useState<RegionFilter>(() =>
-    searchParams.get("region") === "all" ? "all" : "london",
-  );
+  const [regionFilter] = useState<RegionFilter>("london");
   const [serviceCode, setServiceCode] = useState("all");
   const [statusFilter, setStatusFilter] = useState(() =>
     initialStatusFromParams(searchParams.get("status")),
@@ -423,21 +418,6 @@ export function BookersWorkspace() {
           onChange={(e) => setQ(e.target.value)}
           className="lg:max-w-xs"
         />
-        <Select
-          value={regionFilter}
-          onValueChange={(v) => setRegionFilter(v as RegionFilter)}
-        >
-          <SelectTrigger className="lg:w-48">
-            <SelectValue placeholder="Region" />
-          </SelectTrigger>
-          <SelectContent>
-            {REGION_FILTERS.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <Select value={serviceCode} onValueChange={setServiceCode}>
           <SelectTrigger className="lg:w-52">
             <SelectValue placeholder="Type" />
@@ -537,9 +517,9 @@ export function BookersWorkspace() {
           <Mail className="mx-auto mb-3 size-8 text-muted-foreground" />
           <p className="font-medium">No matching bookers</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {regionFilter === "london" && statusFilter === "not_sent"
-              ? "All Greater London hotels are already contacted. Switch status to “Already contacted (sent+)” or region to “All VL markets”."
-              : "Add BUYER leads or change filters."}
+            {statusFilter === "not_sent"
+              ? "All Greater London hotel desks are already contacted. Switch status to “Already contacted (sent+)” to browse them."
+              : "Add London BUYER desks or change filters."}
           </p>
         </div>
       ) : (

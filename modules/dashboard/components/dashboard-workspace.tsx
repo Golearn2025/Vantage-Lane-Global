@@ -177,8 +177,8 @@ export function DashboardWorkspace() {
       key: "b_ready",
       label: "Not sent (ready)",
       value: booker?.leadsReadyNotSent ?? 0,
-      href: "/bookers?status=not_sent&region=all",
-      hint: "Hotel / concierge desks ready to contact",
+      href: "/bookers?status=not_sent",
+      hint: "London hotel desks ready to contact",
     },
     {
       key: "b_sent",
@@ -221,8 +221,8 @@ export function DashboardWorkspace() {
       key: "b_leads",
       label: "Bookers w/ email",
       value: booker?.leadsWithEmail ?? 0,
-      href: "/bookers?status=all&region=all",
-      hint: `${booker?.leadsTotal ?? 0} booker leads total`,
+      href: "/bookers?status=all",
+      hint: `${booker?.leadsTotal ?? 0} London booker leads`,
     },
   ];
 
@@ -280,7 +280,7 @@ export function DashboardWorkspace() {
             Vantage Lane · bookers
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Hotels / concierge demand · not network join
+            Hotels / concierge demand · Greater London only · not network join
             {booker && booker.communicationsEmailSent > 0 ? (
               <>
                 {" "}
