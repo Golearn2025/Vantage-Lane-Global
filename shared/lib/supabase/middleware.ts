@@ -5,6 +5,8 @@ const PUBLIC_PREFIXES = [
   "/login",
   "/join",
   "/interest",
+  "/unsubscribe",
+  "/api/outreach",
   "/auth/callback",
   "/unauthorized",
   "/api/webhooks",
