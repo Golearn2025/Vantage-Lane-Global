@@ -172,50 +172,64 @@ export function DashboardWorkspace() {
     },
   ];
 
+  const bookerContacted =
+    (booker?.emailsSent ?? 0) +
+    (booker?.emailsDelivered ?? 0) +
+    (booker?.emailsOpened ?? 0) +
+    (booker?.emailsClicked ?? 0) +
+    (booker?.interested ?? 0) +
+    (booker?.emailsFailed ?? 0) +
+    (booker?.emailsRejected ?? 0);
+
   const bookerKpis: Kpi[] = [
     {
       key: "b_ready",
-      label: "Not sent (ready)",
+      label: "Still to send",
       value: booker?.leadsReadyNotSent ?? 0,
       href: "/bookers?status=not_sent",
-      hint: "London hotel desks ready to contact",
+      hint: "Never emailed yet — only these are left to contact",
     },
     {
       key: "b_sent",
-      label: "Sent",
+      label: "Sent only",
       value: booker?.emailsSent ?? 0,
       href: "/bookers?status=sent",
+      hint: "Left the server; no deliver/open yet (1 hotel = 1 bucket)",
     },
     {
       key: "b_delivered",
-      label: "Delivered",
+      label: "Delivered (no open)",
       value: booker?.emailsDelivered ?? 0,
       href: "/bookers?status=delivered",
+      hint: "Inbox accepted; not opened yet",
     },
     {
       key: "b_opened",
-      label: "Opened",
+      label: "Opened (no click)",
       value: booker?.emailsOpened ?? 0,
       href: "/bookers?status=opened",
+      hint: "Opened email; no link click",
     },
     {
       key: "b_clicked",
       label: "Clicked",
       value: booker?.emailsClicked ?? 0,
       href: "/bookers?status=clicked",
+      hint: "Clicked a link in the email",
     },
     {
       key: "b_interested",
       label: "Interested",
       value: booker?.interested ?? 0,
       href: "/bookers?status=signed_up",
-      hint: "CTA /interest accepted",
+      hint: "Marked interest via CTA",
     },
     {
       key: "b_failed",
       label: "Failed / bounced",
       value: booker?.emailsFailed ?? 0,
       href: "/bookers?status=failed",
+      hint: "Hard bounce or send failure",
     },
     {
       key: "b_rejected",
@@ -226,10 +240,10 @@ export function DashboardWorkspace() {
     },
     {
       key: "b_leads",
-      label: "Bookers w/ email",
+      label: "Total London desks",
       value: booker?.leadsWithEmail ?? 0,
       href: "/bookers?status=all",
-      hint: `${booker?.leadsTotal ?? 0} London booker leads`,
+      hint: "All Greater London booker leads with email",
     },
   ];
 
@@ -287,12 +301,20 @@ export function DashboardWorkspace() {
             Vantage Lane · bookers
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Hotels / concierge demand · Greater London only · not network join
-            {booker && booker.communicationsEmailSent > 0 ? (
+            Greater London hotels only · each desk counts in{" "}
+            <span className="text-foreground/80">one</span> furthest status
+            {booker ? (
               <>
                 {" "}
-                · {booker.communicationsEmailSent.toLocaleString()} booker emails
-                logged
+                · contacted {bookerContacted.toLocaleString()} · still to send{" "}
+                {(booker.leadsReadyNotSent ?? 0).toLocaleString()}
+                {booker.communicationsEmailSent > 0 ? (
+                  <>
+                    {" "}
+                    · {booker.communicationsEmailSent.toLocaleString()} emails
+                    logged
+                  </>
+                ) : null}
               </>
             ) : null}
           </p>
