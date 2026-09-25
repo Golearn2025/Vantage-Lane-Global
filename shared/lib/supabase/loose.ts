@@ -11,10 +11,11 @@ export type LooseBuilder<T = unknown> = {
     column: string,
     options?: { ascending?: boolean },
   ) => LooseBuilder<T>;
+  range: (from: number, to: number) => LooseBuilder<T>;
   not: (column: string, operator: string, value: unknown) => LooseBuilder<T>;
   single: () => PromiseLike<{ data: T | null; error: DbError }>;
   maybeSingle: () => PromiseLike<{ data: T | null; error: DbError }>;
-} & PromiseLike<{ data: T | null; error: DbError }>;
+} & PromiseLike<{ data: T[] | null; error: DbError }>;
 
 export type LooseClient = {
   from: <T = unknown>(relation: string) => LooseBuilder<T>;

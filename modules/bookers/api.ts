@@ -1,4 +1,5 @@
 import { createClient } from "@/shared/lib/supabase/client";
+import { fetchAllPages } from "@/shared/lib/supabase/fetch-all";
 import { looseDb } from "@/shared/lib/supabase/loose";
 import type { BookerLead } from "@/modules/bookers/types";
 
@@ -31,24 +32,24 @@ export async function listBookerLeads(filters?: {
   onlyWithEmail?: boolean;
 }): Promise<BookerLead[]> {
   const supabase = createClient();
-  let query = looseDb(supabase)
-    .from<BookerLeadRow>("v_booker_leads")
-    .select(
-      "organization_id, display_name, legal_country_code, legal_city, service_code, service_name, invite_email, contact_name, invited_at, invite_accepted_at, converted_organization_id, last_email_status, opened_at, clicked_at, is_test, primary_base_label, primary_base_city, primary_base_address, primary_base_lat, primary_base_lng",
-    )
-    .order("created_at", { ascending: false });
+  let rows = await fetchAllPages<BookerLeadRow>((from, to) => {
+    let query = looseDb(supabase)
+      .from<BookerLeadRow>("v_booker_leads")
+      .select(
+        "organization_id, display_name, legal_country_code, legal_city, service_code, service_name, invite_email, contact_name, invited_at, invite_accepted_at, converted_organization_id, last_email_status, opened_at, clicked_at, is_test, primary_base_label, primary_base_city, primary_base_address, primary_base_lat, primary_base_lng",
+      )
+      .order("created_at", { ascending: false });
 
-  if (filters?.serviceCode && filters.serviceCode !== "all") {
-    query = query.eq("service_code", filters.serviceCode);
-  }
-  if (filters?.onlyWithEmail) {
-    query = query.not("invite_email", "is", null);
-  }
+    if (filters?.serviceCode && filters.serviceCode !== "all") {
+      query = query.eq("service_code", filters.serviceCode);
+    }
+    if (filters?.onlyWithEmail) {
+      query = query.not("invite_email", "is", null);
+    }
 
-  const { data, error } = await query;
-  if (error) throw error;
+    return query.range(from, to);
+  });
 
-  let rows = (data as BookerLeadRow[] | null) ?? [];
   const q = filters?.q?.trim().toLowerCase();
   if (q) {
     rows = rows.filter(

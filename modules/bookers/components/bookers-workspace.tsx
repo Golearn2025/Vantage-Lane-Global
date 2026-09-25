@@ -128,9 +128,10 @@ function canSelectForSend(row: BookerLead, statusFilter: string) {
 }
 
 function initialStatusFromParams(raw: string | null): string {
-  if (!raw) return "not_sent";
+  // London hotels are already contacted — default to sent+ so the list is not empty.
+  if (!raw) return "sent_family";
   if (STATUS_FILTERS.some((s) => s.value === raw)) return raw;
-  return "not_sent";
+  return "sent_family";
 }
 
 export function BookersWorkspace() {
@@ -536,8 +537,9 @@ export function BookersWorkspace() {
           <Mail className="mx-auto mb-3 size-8 text-muted-foreground" />
           <p className="font-medium">No matching bookers</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add BUYER leads or change filters. Run the bookers migration for UK
-            starter desks.
+            {regionFilter === "london" && statusFilter === "not_sent"
+              ? "All Greater London hotels are already contacted. Switch status to “Already contacted (sent+)” or region to “All VL markets”."
+              : "Add BUYER leads or change filters."}
           </p>
         </div>
       ) : (

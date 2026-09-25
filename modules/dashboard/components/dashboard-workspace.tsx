@@ -177,7 +177,7 @@ export function DashboardWorkspace() {
       key: "b_ready",
       label: "Not sent (ready)",
       value: booker?.leadsReadyNotSent ?? 0,
-      href: "/bookers?status=not_sent",
+      href: "/bookers?status=not_sent&region=all",
       hint: "Hotel / concierge desks ready to contact",
     },
     {
@@ -221,7 +221,7 @@ export function DashboardWorkspace() {
       key: "b_leads",
       label: "Bookers w/ email",
       value: booker?.leadsWithEmail ?? 0,
-      href: "/bookers?status=all",
+      href: "/bookers?status=all&region=all",
       hint: `${booker?.leadsTotal ?? 0} booker leads total`,
     },
   ];
