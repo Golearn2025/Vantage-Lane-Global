@@ -75,12 +75,14 @@ export default function JoinSignupClient() {
     const nextSetup = invite
       ? `/join/setup?invite=${encodeURIComponent(invite)}`
       : "/join/setup";
+    // After email confirm, land on the success page (invite stays in metadata + local storage).
+    const afterConfirm = "/auth/confirmed";
 
     const { data, error: signErr } = await supabase.auth.signUp({
       email: values.email.trim().toLowerCase(),
       password: values.password,
       options: {
-        emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(nextSetup)}`,
+        emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(afterConfirm)}`,
         data: {
           display_name: displayName,
           first_name: values.firstName.trim(),
